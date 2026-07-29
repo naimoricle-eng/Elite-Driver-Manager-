@@ -215,11 +215,24 @@ RM 0
 </div>
 <script type="module">
 
+import { auth , db } from "./js/firebase.js";
 
- import { auth, db } from "./js/firebase.js";
 import {
 onAuthStateChanged
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+
+import {
+startTracking
+} from "./js/tracking.js";
+onAuthStateChanged(auth,(user)=>{
+
+if(user){
+
+startTracking(user.uid);
+
+}
+
+});
 
 
 import {
@@ -309,115 +322,9 @@ if (userDoc.exists()) {
 
 });
 
-let watchID = null;
-let lastLat = null;
-let lastLon = null;
-let stopTimer = null;
-
-
-function startTracking(){
-
-if(watchID !== null) return;
-
-
-watchID = navigator.geolocation.watchPosition(
-
-async(pos)=>{
-console.log("GPS masih hidup");
-let lat = pos.coords.latitude;
-let lon = pos.coords.longitude;
-
-
-console.log("GPS:",lat,lon);
 
 
 
-if(lastLat == null){
-
-lastLat = lat;
-lastLon = lon;
-
-await saveTracking(lat,lon,"MULA");
-
-return;
-
-}
-
-
-
-let distance = getDistance(
-lastLat,
-lastLon,
-lat,
-lon
-);
-
-
-
-if(distance >= 10){
-
-lastLat = lat;
-lastLon = lon;
-
-
-clearTimeout(stopTimer);
-
-
-await saveTracking(
-lat,
-lon,
-"BERGERAK"
-);
-
-
-return;
-
-}
-
-
-
-// lokasi sama
-
-clearTimeout(stopTimer);
-
-
-stopTimer=setTimeout(async()=>{
-
-
-await saveTracking(
-lat,
-lon,
-"BERHENTI"
-);
-
-
-console.log("Berhenti 1 minit");
-
-
-},60000);
-
-
-
-},
-
-
-(error)=>{
-
-console.log(error);
-
-},
-
-
-{
-enableHighAccuracy:true,
-maximumAge:5000,
-timeout:30000
-}
-
-);
-
-
-}
 function getDistance(lat1,lon1,lat2,lon2){
 
 let R = 6371000;
@@ -683,8 +590,8 @@ ref.id
 );
 document.getElementById("btn-checkin").disabled = true;
 document.getElementById("btn-checkout").disabled = false;
-saveTracking(lat, lon);
-startTracking();
+saveTracking(lat, lon, "MULA");
+startTracking(currentUser.uid);
 
 alert("✅ Check In Berjaya");
 localStorage.setItem(

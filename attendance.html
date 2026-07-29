@@ -1,0 +1,256 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+
+<title>Attendance History</title>
+
+<link rel="stylesheet" href="css/style.css">
+
+
+</head>
+
+
+<body>
+
+
+<div id="menu"></div>
+<div id="theme"></div>
+<div id="language"></div>
+
+<div class="dashboard">
+
+
+<h1>📅 Attendance History</h1>
+
+
+<div id="attendanceList">
+
+Loading...
+
+</div>
+
+
+</div>
+
+
+<script type="module">
+
+import { auth, db } from "./js/firebase.js";
+import {
+onAuthStateChanged
+} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+
+
+import {
+doc,
+getDoc,
+collection,
+getDocs,
+query,
+where,
+orderBy
+} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+
+
+
+async function loadAttendance(){
+
+const box = document.getElementById("attendanceList");
+
+box.innerHTML = "Loading...";
+
+try{
+
+const user = auth.currentUser;
+
+if(!user){
+box.innerHTML = "Sila login dahulu";
+return;
+}
+
+
+const userData = await getDoc(
+doc(db,"users",user.uid)
+);
+
+
+const profile = userData.data();
+
+const userRole = profile.role;
+const userName = profile.name;
+const userUID = user.uid;
+
+let q;
+
+if(userRole === "admin"){
+
+q = query(
+    collection(db,"attendance"),
+    where("name","==",userName),
+    orderBy("createdAt","desc")
+);
+
+}else{
+
+    q = query(
+        collection(db,"attendance"),
+        where("name","==",userName),
+        orderBy("createdAt","desc")
+    );
+
+}
+
+const result = await getDocs(q);
+
+if(result.empty){
+box.innerHTML = "<div class='card'>Tiada rekod attendance.</div>";
+return;
+}
+
+let html = "";
+
+result.forEach((doc)=>{
+
+const attendanceID = doc.id;
+
+const data = doc.data();
+
+let checkIn = "-";
+let checkOut = "-";
+
+if(data.checkIn){
+checkIn = data.checkIn.toDate ?
+data.checkIn.toDate().toLocaleString() :
+data.checkIn;
+}
+
+if(data.checkOut){
+checkOut = data.checkOut.toDate ?
+data.checkOut.toDate().toLocaleString() :
+data.checkOut;
+}
+
+let statusColor = "#999";
+
+switch(data.status){
+
+case "Working":
+statusColor = "#00e676";
+break;
+
+case "Completed":
+statusColor = "#03a9f4";
+break;
+
+case "Leave":
+statusColor = "#ff9800";
+break;
+
+case "MC":
+statusColor = "#f44336";
+break;
+
+}
+
+html += `
+
+<div class="card">
+
+<h3>🕵️${data.name || "Unknown name"}</h3>
+
+<p>
+<b>💼 Position</b><br>
+${data.position || "-"}
+</p>
+
+<p><b>🟢 Check In</b><br>${checkIn}</p>
+
+<p><b>🔴 Check Out</b><br>${checkOut}</p>
+
+<p>
+<b>📍 Check In Location</b><br>
+<a href="https://www.google.com/maps?q=${data.latitude},${data.longitude}" target="_blank">
+${data.location ?? "-"}
+</a>
+</p>
+
+<p>
+<b>📍 Check Out Location</b><br>
+<a href="https://www.google.com/maps?q=${data.checkoutLatitude},${data.checkoutLongitude}" target="_blank">
+${data.checkoutLocation ?? "-"}
+</a>
+</p>
+
+<p>
+<b>⏱ Total Working</b><br>
+${data.totalHour || 0} jam
+</p>
+
+<p>
+<b>💰 OT</b><br>
+RM ${data.otMoney || 0}
+</p>
+<br><br>
+
+<button onclick="location.href='route.html?id=${attendanceID}'">
+🗺️ VIEW ROUTE
+</button>
+<span style="color:${statusColor};font-weight:bold;">
+${data.status || "-"}
+</span>
+
+
+</div>
+
+`;
+
+});
+
+box.innerHTML = html;
+
+}catch(error){
+
+box.innerHTML = `
+<div class="card">
+❌ ${error.message}
+</div>
+`;
+
+}
+
+}
+
+function openRoute(attendanceID){
+
+    window.open(
+        "route.html?id=" + attendanceID,
+        "_blank"
+    );
+
+}
+
+
+
+onAuthStateChanged(auth, (user)=>{
+
+    if(user){
+        loadAttendance();
+    }else{
+        document.getElementById("attendanceList").innerHTML =
+        "Sila login dahulu";
+    }
+
+});
+</script>
+
+
+
+<script src="js/theme.js"></script>
+<script src="js/language.js"></script>
+<script src="js/menu.js"></script>
+
+
+</body>
+
+</html>

@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html>
+<head>
+  
+<title>Leave Application</title>
+<link rel="stylesheet" href="css/style.css">
+
+
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+</head>
+
+<body>
+
+<div id="menu"></div>
+<div id="theme"></div>
+
+<div class="dashboard">
+
+<h1>Leave Application</h1>
+
+<select id="leaveType">
+<option>Annual Leave (AL)</option>
+<option>Medical Leave (MC)</option>
+<option>Emergency Leave (EL)</option>
+<option>Unpaid Leave (UL)</option>
+</select>
+
+<br><br>
+
+<label>Tarikh Mula</label><br>
+<input type="date" id="startDate">
+
+<br><br>
+
+<label>Tarikh Tamat</label><br>
+<input type="date" id="endDate">
+
+<br><br>
+
+<textarea id="reason" placeholder="Sebab cuti"></textarea>
+
+<br><br>
+
+<button onclick="saveLeave()">MOHON CUTI</button>
+<button onclick="viewLeave()">LIHAT CUTI</button>
+
+<p id="leaveResult"></p>
+
+</div>
+
+<script>
+
+function saveLeave(){
+
+let leave = {
+type: document.getElementById("leaveType").value,
+start: document.getElementById("startDate").value,
+end: document.getElementById("endDate").value,
+reason: document.getElementById("reason").value,
+status: "Pending"
+};
+
+localStorage.setItem("leave", JSON.stringify(leave));
+
+alert("Permohonan cuti berjaya dihantar.");
+
+}
+
+function viewLeave(){
+
+let data = JSON.parse(localStorage.getItem("leave"));
+
+if(data){
+
+document.getElementById("leaveResult").innerHTML =
+"Jenis: " + data.type +
+"<br>Tarikh: " + data.start + " hingga " + data.end +
+"<br>Sebab: " + data.reason +
+"<br>Status: " + data.status;
+
+}else{
+
+alert("Tiada permohonan cuti.");
+
+}
+
+}
+
+</script>
+
+<script src="js/theme.js"></script>
+
+<script src="js/language.js"></script>
+
+<script src="js/menu.js"></script>
+
+</body>
+</html>

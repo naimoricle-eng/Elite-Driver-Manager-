@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>Claim - Elite Driver Manager</title>
+<link rel="stylesheet" href="css/style.css">
+</head>
+
+<body>
+<div id="menu"></div>
+<div id="theme"></div>
+
+<div class="dashboard">
+<div class="card-box">
+
+<h2>🧾 Claim</h2>
+<div
+
+<h1>Elite Driver Manager</h1>
+  
+
+<h2>Claim</h2>
+
+<select id="type">
+<option>Minyak</option>
+<option>Tol</option>
+<option>Klinik</option>
+<option>Grab</option>
+<option>Lain-lain</option>
+</select>
+
+<br><br>
+
+<input id="amount" type="number" placeholder="Jumlah RM">
+
+<br><br>
+
+<input id="date" type="date">
+
+<br><br>
+
+<textarea id="note" placeholder="Catatan"></textarea>
+
+<br><br>
+
+<input id="receipt" type="file" accept="image/*">
+
+<br><br>
+
+<button onclick="saveClaim()">SAVE CLAIM</button>
+
+<button onclick="viewClaim()">VIEW CLAIM</button>
+
+<p id="claimResult"></p>
+
+</div>
+
+
+<script>
+
+function saveClaim(){
+
+let claim = {
+
+type: document.getElementById("type").value,
+
+amount: document.getElementById("amount").value,
+
+date: document.getElementById("date").value,
+
+note: document.getElementById("note").value
+
+};
+
+
+localStorage.setItem("claim", JSON.stringify(claim));
+let claims = JSON.parse(localStorage.getItem("claims")) || [];
+
+claims.push(claim);
+
+localStorage.setItem("claims", JSON.stringify(claims));  
+
+
+alert("Claim berjaya disimpan!");
+
+}
+
+
+
+function viewClaim(){
+
+let data = JSON.parse(localStorage.getItem("claim"));
+
+
+if(data){
+
+document.getElementById("claimResult").innerHTML =
+
+"Jenis: " + data.type +
+"<br>Jumlah: RM " + data.amount +
+"<br>Tarikh: " + data.date +
+"<br>Catatan: " + data.note;
+
+}else{
+
+alert("Tiada rekod claim");
+
+}
+
+}
+
+</script>
+
+<script src="js/theme.js"></script>
+<script src="js/menu.js"></script>
+
+</body>
+</html>
+
+
+</body>
+</html>

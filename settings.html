@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+<title>Settings - Elite Driver Manager</title>
+<link rel="stylesheet" href="css/style.css">
+</head>
+
+<body>
+<div id="menu"></div>
+
+
+<div class="dashboard">
+
+<!-- TAMBAH data-lang UNTUK TERJEMAHAN -->
+<h1 data-lang="nav-settings">⚙️ Settings</h1>
+  
+<h3 data-lang="title-company">Company Info</h3>
+<input id="company" data-lang="placeholder-company" placeholder="Nama Syarikat">
+
+<br><br>
+<h3 data-lang="title-appearance">🎨 Appearance</h3>
+
+<select id="theme">
+<option value="dark">Dark Lime</option>
+<option value="blue">Blue Sky</option>
+<option value="carbon">Carbon Gray</option>
+<option value="emerald">Emerald Green</option>
+<option value="purple">Purple Neon</option>
+<option value="sunset">Sunset Orange</option>
+</select>
+
+<br><br>
+
+<h3 data-lang="title-language">🌐 Language</h3>
+<select id="language">
+<option value="ms">Bahasa Melayu</option>
+<option value="en">English</option>
+</select>
+
+<br><br>
+
+
+<h3 data-lang="title-navigation">🗺 Navigation</h3>
+<select id="map">
+<option value="google">Google Maps</option>
+<option value="waze">Waze</option>
+</select>
+
+<br><br>
+
+
+<h3 data-lang="title-notification">🔔 Notification</h3>
+<select id="notify">
+<option value="on">ON</option>
+<option value="off">OFF</option>
+</select>
+
+
+<button onclick="saveSetting()" data-lang="btn-save">
+SAVE SETTINGS
+</button>
+
+<p id="result"></p>
+  
+<button onclick="logout()" data-lang="btn-logout">
+🚪 LOGOUT
+</button>
+
+</div>
+
+
+<script>
+  
+
+
+function logout(){
+    localStorage.removeItem("login");
+    window.location="index.html";
+}
+
+
+function saveSetting(){
+
+    localStorage.setItem("company", document.getElementById("company").value);
+    localStorage.setItem("theme", document.getElementById("theme").value);
+    localStorage.setItem("language", document.getElementById("language").value);
+    localStorage.setItem("map", document.getElementById("map").value);
+    localStorage.setItem("notify", document.getElementById("notify").value);
+
+    applyTheme();
+    applyLanguage();
+
+    const currentLang = localStorage.getItem("language") || "ms";
+
+    document.getElementById("result").innerHTML =
+    currentLang === "en" 
+    ? "✅ Settings saved successfully" 
+    : "✅ Settings berjaya disimpan";
+}
+
+
+
+function loadSetting(){
+
+    document.getElementById("company").value = localStorage.getItem("company") || "";
+
+    document.getElementById("theme").value = localStorage.getItem("theme") || "dark";
+
+    document.getElementById("language").value = localStorage.getItem("language") || "ms";
+
+    document.getElementById("map").value = localStorage.getItem("map") || "google";
+
+    document.getElementById("notify").value = localStorage.getItem("notify") || "on";
+
+    
+    applyTheme();
+    
+
+}
+function applyTheme(){
+    initTheme();
+}
+</script>
+
+<script src="js/theme.js"></script>
+
+<!-- HUBUNGKAN FAIL BAHASA DI SINI -->
+<script src="js/language.js"></script>
+<script src="js/menu.js"></script>
+<script>
+loadSetting();
+</script>
+</body>
+
+</html>

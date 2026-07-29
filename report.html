@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+<title>Monthly Report</title>
+<link rel="stylesheet" href="css/style.css">
+</head>
+
+<body>
+
+
+<div id="menu"></div>
+<div id="theme"></div>
+
+<div class="dashboard">
+
+<h1>📊 Monthly Report</h1>
+<h2>ELITE DRIVER MANAGER</h2>
+
+<p id="companyName"></p>
+
+<hr>
+
+<p id="driverName"></p>
+
+<p id="reportDate"></p>
+
+<h3 id="month"></h3>
+<select id="selectMonth" onchange="monthlyReport()">
+
+<option value="0">Januari</option>
+<option value="1">Februari</option>
+<option value="2">Mac</option>
+<option value="3">April</option>
+<option value="4">Mei</option>
+<option value="5">Jun</option>
+<option value="6">Julai</option>
+<option value="7">Ogos</option>
+<option value="8">September</option>
+<option value="9">Oktober</option>
+<option value="10">November</option>
+<option value="11">Disember</option>
+
+</select>
+
+<p id="driverName"></p>
+
+<div id="reportList"></div>
+
+<hr>
+
+<h2>Summary</h2>
+
+<p id="totalDay"></p>
+<p id="totalHour"></p>
+<p id="totalOT"></p>
+<p id="totalOTRM"></p>
+<p id="totalClaim"></p>
+
+
+<button onclick="printPDF()">
+🖨️ PRINT PDF
+  <br><br>
+
+<p>
+Driver Signature:
+</p>
+
+<br><br>
+
+____________________
+
+<br><br>
+</button>
+
+
+</div>
+
+
+<script>
+
+function monthlyReport(){
+  document.getElementById("companyName").innerHTML =
+"Company: " + (localStorage.getItem("company") || "N/A");
+
+
+document.getElementById("reportDate").innerHTML =
+"Report Generated: " + new Date().toLocaleDateString();
+
+
+let data = JSON.parse(localStorage.getItem("attendance")) || [];
+let bulan = Number(document.getElementById("selectMonth").value);
+
+let tahun = new Date().getFullYear();
+
+data = data.filter(function(item){
+
+let tarikh = new Date(item.date);
+
+return tarikh.getMonth() == bulan &&
+tarikh.getFullYear() == tahun;
+
+});
+
+
+let html = "";
+
+let totalHour = 0;
+let totalOT = 0;
+
+
+for(let i=0;i<data.length;i++){
+
+
+html += `
+
+<div class="card">
+
+<h3>${data[i].date}</h3>
+
+<p>
+🟢 Masuk:
+${data[i].checkIn}
+</p>
+
+<p>
+🔴 Keluar:
+${data[i].checkOut}
+</p>
+
+<p>
+⏱️ Jam:
+${data[i].workingHour} jam
+</p>
+
+<p>
+💰 OT:
+${data[i].ot} jam
+</p>
+
+</div>
+
+`;
+
+
+totalHour += Number(data[i].workingHour);
+
+totalOT += Number(data[i].ot);
+
+
+}
+
+
+document.getElementById("reportList").innerHTML = html;
+
+
+document.getElementById("totalDay").innerHTML =
+"Hari Kerja: " + data.length;
+
+
+document.getElementById("totalHour").innerHTML =
+"Jumlah Jam: " + totalHour.toFixed(2)+" jam";
+
+
+document.getElementById("totalOT").innerHTML =
+"Jumlah OT: " + totalOT.toFixed(2)+" jam";
+
+
+let rate = localStorage.getItem("otRate") || 20;
+
+
+document.getElementById("totalOTRM").innerHTML =
+"OT RM: RM " + (totalOT*rate).toFixed(2);
+
+
+document.getElementById("driverName").innerHTML =
+"Driver: " + (localStorage.getItem("driver") || "N/A");
+
+
+document.getElementById("month").innerHTML =
+new Date().toLocaleString('default',{month:'long',year:'numeric'});
+
+
+}
+
+
+function printPDF(){
+
+window.print();
+
+}
+
+
+monthlyReport();
+
+</script>
+
+<script type="module" src="js/profile.js"></script>
+<script src="js/menu.js"></script>
+<script src="js/theme.js"></script>
+<script src="js/language.js"></script>
+
+</body>
+
+</html>

@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <title>Elite Driver Manager</title>
+    <link rel="stylesheet" href="css/style.css">
+    
+
+    <!-- TAMBAHAN CSS ANIMASI PUSING UNTUK LOGO -->
+    <style>
+        .spin-animation {
+            animation: spinAndScale 0.6s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+        }
+
+        @keyframes spinAndScale {
+            0% {
+                transform: rotate(0deg) scale(1);
+            }
+            50% {
+                transform: rotate(180deg) scale(1.15);
+                filter: drop-shadow(0 0 15px var(--primary-color, #B6FF2E));
+            }
+            100% {
+                transform: rotate(360deg) scale(1);
+            }
+        }
+    </style>
+</head>
+
+<body>
+
+    <div class="login-box">
+
+        <!-- DITAMBAH ID PADA LOGO UNTUK MANIPULASI JAVASCRIPT -->
+        <img src="./images/logo.png" id="loginLogo" width="125" style="transition: all 0.5s ease;">
+
+        <!-- BORANG LOG MASUK SOKONGAN BAHASA -->
+        <h2 data-lang="login-title">Elite Driver Manager</h2>
+        <p data-lang="login-subtitle">Driver Login</p>
+
+        <input type="email" id="email" data-lang="ph-email" placeholder="Email">
+        <div class="password-box">
+    <input
+        type="password"
+        id="password"
+        data-lang="ph-password"
+        placeholder="Password">
+
+    <span id="togglePassword">👁️</span>
+</div>
+
+        <p>
+            <a href="#" onclick="forgotPassword()" data-lang="link-forgot-pass">
+                🔑 Forgot Password?
+            </a>
+        </p>
+
+        <button onclick="login()" data-lang="btn-login">
+            LOGIN
+        </button>
+
+        <p id="message"></p>
+
+        <p>
+            <span data-lang="lbl-no-account">Belum ada akaun?</span>
+            <a href="register.html" data-lang="link-to-register">
+                Register Driver
+            </a>
+        </p>
+
+    </div>
+<script>
+const password = document.getElementById("password");
+const toggle = document.getElementById("togglePassword");
+
+toggle.onclick = function () {
+    if (password.type === "password") {
+        password.type = "text";
+        toggle.innerHTML = "🙈";
+    } else {
+        password.type = "password";
+        toggle.innerHTML = "👁️";
+    }
+};
+</script>
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+        import { 
+            getAuth, 
+            signInWithEmailAndPassword,
+            sendPasswordResetEmail
+        } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+
+        const firebaseConfig = {
+            apiKey: "AIzaSyBmPQ7T6egP_yI7g3C16vWSrgluYV8Irew",
+            authDomain: "elitedrivermanager.firebaseapp.com",
+            projectId: "elitedrivermanager",
+            storageBucket: "elitedrivermanager.firebasestorage.app",
+            messagingSenderId: "1027856972050",
+            appId: "1:1027856972050:web:38f4959e0dd5bb592d9bcb"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+
+        // Padam data login sahaja untuk logout.
+        localStorage.removeItem("login");
+        localStorage.removeItem("uid");
+
+        if(localStorage.getItem("login") == "yes"){
+            window.location = "dashboard.html";
+        }
+
+        window.forgotPassword = function(){
+            let email = document.getElementById("email").value.trim();
+            const currentLang = localStorage.getItem("language") || "ms";
+
+            if(email == ""){
+                document.getElementById("message").innerHTML = currentLang === "en" ? "⚠️ Enter email first" : "⚠️ Masukkan email dahulu";
+                return;
+            }
+
+            sendPasswordResetEmail(auth, email)
+            .then(()=>{
+                document.getElementById("message").innerHTML = currentLang === "en" ? "✅ Password reset link sent" : "✅ Link reset password telah dihantar";
+            })
+            .catch((error)=>{
+                document.getElementById("message").innerHTML = currentLang === "en" ? "❌ Email not found" : "❌ Email tidak dijumpai";
+                console.log(error);
+            });
+        }
+
+        window.login = function(){
+            const currentLang = localStorage.getItem("language") || "ms";
+            document.getElementById("message").innerHTML = currentLang === "en" ? "⏳ Checking..." : "⏳ Menyemak...";
+
+            let email = document.getElementById("email").value.trim();
+            let password = document.getElementById("password").value;
+
+            if(email == "" || password == ""){
+                document.getElementById("message").innerHTML = currentLang === "en" ? "⚠️ Please fill in email and password" : "⚠️ Sila isi email and password";
+                return;
+            }
+
+            signInWithEmailAndPassword(auth, email, password)
+            .then((userCredential)=>{
+                localStorage.setItem("login", "yes");
+                localStorage.setItem("uid", userCredential.user.uid);
+                
+                // 1. AKTIFKAN ANIMASI PUSING PADA LOGO
+                const logo = document.getElementById("loginLogo");
+                logo.classList.add("spin-animation");
+                
+                // 2. BERI SEDIKIT DELAY (1.5 SAAT) UNTUK KESAN VISUAL SEBELUM MASUK DASHBOARD
+                setTimeout(() => {
+                    window.location = "dashboard.html";
+                }, 2000);
+            })
+            .catch((error)=>{
+                // Mengubah mesej ralat Firebase mengikut bahasa pilihan
+                if (error.code === "auth/invalid-credential" || error.code === "auth/wrong-password" || error.code === "auth/user-not-found") {
+                    document.getElementById("message").innerHTML = currentLang === "en" ? "❌ Invalid email or password" : "❌ Email atau kata laluan salah";
+                } else {
+                    document.getElementById("message").innerHTML = "❌ " + error.message;
+                }
+                console.log(error);
+            });
+        }
+    </script>
+
+    <!-- Fail sokongan bahasa di bahagian paling bawah -->
+    <script src="js/language.js"></script>
+    
+
+</body>
+</html>

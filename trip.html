@@ -1,0 +1,385 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>Trip Log</title>
+<link rel="stylesheet" href="css/style.css">
+</head>
+
+<body>
+<div id="menu"></div>
+<div id="theme"></div>
+<div class="dashboard">
+
+<h1>🚗 Trip Log</h1>
+
+
+<label>Destinasi</label>
+<input type="text" id="destination">
+
+<label>Tujuan</label>
+<textarea id="purpose"></textarea>
+  
+<label>Odometer Mula(KM)</label>
+<input type="number" id="startKM">
+
+<label>Odometer Tamat(KM)</label>
+<input type="number" id="endKM">
+
+<p id="distance">Jarak: 0 KM</p>
+
+<button onclick="saveTrip()">
+  
+➕ SIMPAN TRIP
+</button>
+
+<button onclick="startTrip()">
+🚗 MULA TRIP
+</button>
+
+<button onclick="endTrip()">
+🛑 TAMAT TRIP
+</button>
+  <p id="tripStatus">
+Status: Tiada Trip
+</p>
+
+<p id="tripTime"></p>
+ 
+
+
+<h2>Senarai Trip</h2>
+
+<div id="tripList"></div>
+
+</div>
+  
+  
+
+<script type="module">
+
+import { auth, db } from "./js/firebase.js";
+
+import {
+collection,
+addDoc,
+doc,
+updateDoc,
+serverTimestamp
+} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+function kiraJarak(lat1, lon1, lat2, lon2){
+
+let R = 6371000;
+
+let dLat = (lat2-lat1) * Math.PI/180;
+let dLon = (lon2-lon1) * Math.PI/180;
+
+let a =
+Math.sin(dLat/2) * Math.sin(dLat/2) +
+Math.cos(lat1*Math.PI/180) *
+Math.cos(lat2*Math.PI/180) *
+Math.sin(dLon/2) *
+Math.sin(dLon/2);
+
+let c = 2 * Math.atan2(
+Math.sqrt(a),
+Math.sqrt(1-a)
+);
+
+return R*c;
+
+}
+let watchID = null;
+let lastLat = null;
+let lastLng = null;
+let stopTimer = null;
+
+function kiraKM(){
+
+let mula = Number(document.getElementById("startKM").value);
+
+let tamat = Number(document.getElementById("endKM").value);
+
+
+let jarak = tamat - mula;
+
+
+if(jarak < 0){
+jarak = 0;
+}
+
+
+document.getElementById("distance").innerHTML =
+"Jarak: " + jarak + " KM";
+
+}
+  
+function saveTrip(){
+
+if(!localStorage.getItem("tripStartTime") ||
+!localStorage.getItem("tripEndTime")){
+
+alert("Sila tekan MULA TRIP dan TAMAT TRIP dahulu");
+return;
+
+}
+let trip = {
+
+date: new Date().toLocaleDateString(),
+
+startTime: localStorage.getItem("tripStartTime"),
+
+endTime: localStorage.getItem("tripEndTime"),
+
+startLat: localStorage.getItem("tripStartLat"),
+
+startLng: localStorage.getItem("tripStartLng"),
+
+endLat: localStorage.getItem("tripEndLat"),
+
+endLng: localStorage.getItem("tripEndLng"),
+
+destination: document.getElementById("destination").value,
+
+purpose: document.getElementById("purpose").value,
+
+startKM: Number(document.getElementById("startKM").value),
+
+endKM: Number(document.getElementById("endKM").value),
+
+distance:
+Number(document.getElementById("endKM").value) -
+Number(document.getElementById("startKM").value)
+};
+
+
+let trips = JSON.parse(localStorage.getItem("trips")) || [];
+
+trips.push(trip);
+
+
+localStorage.setItem("trips", JSON.stringify(trips));
+
+
+localStorage.setItem(
+"lastKM",
+document.getElementById("endKM").value
+);
+
+
+alert("Trip berjaya disimpan!");
+document.getElementById("destination").value="";
+document.getElementById("purpose").value="";
+document.getElementById("endKM").value="";  
+
+loadTrip();
+
+}
+  
+  
+function startTrip(){
+
+watchID = navigator.geolocation.watchPosition(async function(position){
+
+let lat = position.coords.latitude;
+let lng = position.coords.longitude;
+console.log("GPS:", lat, lng);
+
+if(lastLat == null){
+
+lastLat = lat;
+lastLng = lng;
+
+
+await addDoc(collection(db,"tracking"),{
+
+latitude: lat,
+longitude: lng,
+status:"MULA TRIP",
+time: serverTimestamp()
+
+});
+
+
+return;
+
+}
+
+
+let jarak = kiraJarak(
+lastLat,
+lastLng,
+lat,
+lng
+);
+
+
+// kalau bergerak lebih 50 meter, reset kiraan berhenti
+if(jarak > 50){
+
+lastLat = lat;
+lastLng = lng;
+
+
+await addDoc(collection(db,"tracking"),{
+
+latitude: lat,
+longitude: lng,
+status:"BERGERAK",
+time: serverTimestamp()
+
+});
+
+
+clearTimeout(stopTimer);
+
+return;
+
+}
+
+
+// kalau masih kawasan sama, mula kira masa berhenti
+clearTimeout(stopTimer);
+
+stopTimer = setTimeout(async function(){
+
+
+await addDoc(collection(db,"tracking"),{
+
+latitude: lat,
+longitude: lng,
+
+status:"BERHENTI",
+
+time: serverTimestamp()
+
+});
+
+
+console.log("Lokasi berhenti disimpan");
+
+
+},60000); // 1 minit
+
+
+},
+function(error){
+
+alert("GPS Error: "+error.message);
+
+},
+{
+enableHighAccuracy:true,
+maximumAge:0,
+timeout:10000
+});
+
+
+alert("Tracking berhenti lokasi aktif");
+
+}
+  
+function endTrip(){
+
+if(watchID){
+
+navigator.geolocation.clearWatch(watchID);
+
+}
+
+
+document.getElementById("tripStatus").innerHTML =
+"Status: Trip Tamat";
+
+
+alert("Tracking dihentikan!");
+
+}
+  
+function loadLastKM(){
+
+let km = localStorage.getItem("lastKM");
+
+if(km){
+
+document.getElementById("startKM").value = km;
+
+}
+
+}  
+  
+  
+let trips = JSON.parse(localStorage.getItem("trips")) || [];
+
+
+function loadTrip(){
+
+let trips = JSON.parse(localStorage.getItem("trips")) || [];
+
+let html = "";
+
+
+trips.forEach(function(trip){
+
+
+
+html += `
+<div class="card">
+
+<h3>${trip.date}</h3>
+
+<p>🕒 ${trip.startTime} → ${trip.endTime}</p>
+
+<p>📍 Destinasi: ${trip.destination}</p>
+
+<p>📝 Tujuan: ${trip.purpose}</p>
+
+<p>🚗 Jarak: ${trip.distance} KM</p>
+
+<p>📍 GPS Mula:
+${trip.startLat}, ${trip.startLng}</p>
+
+<p>📍 GPS Tamat:
+${trip.endLat}, ${trip.endLng}</p>
+<button onclick="openTripMap('${trip.endLat}','${trip.endLng}')">
+📍 LIHAT MAP
+</button>
+</div>
+`;
+
+});
+
+
+document.getElementById("tripList").innerHTML = html;
+
+}
+loadTrip();
+loadLastKM();
+
+function openTripMap(lat,lng){
+
+if(lat && lng){
+
+window.open(
+"https://www.google.com/maps?q=" + lat + "," + lng,
+"_blank"
+);
+
+}else{
+
+alert("Lokasi tiada");
+
+}
+
+}
+window.startTrip = startTrip;
+window.endTrip = endTrip;
+window.saveTrip = saveTrip;
+
+</script>
+
+<script src="js/theme.js"></script>
+<script src="js/language.js"></script>
+<script src="js/menu.js"></script>
+
+</body>
+</html>

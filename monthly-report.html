@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>Monthly Report</title>
+<link rel="stylesheet" href="css/style.css">
+</head>
+
+<body>
+
+<div id="menu"></div>
+<div id="theme"></div>
+
+<div class="dashboard">
+
+<h1>📄 Monthly Report</h1>
+
+
+
+<label>Pilih Bulan:</label>
+
+<input type="month" id="monthSelect" onchange="loadReport()">
+
+<div id="report"></div>
+
+<button onclick="printReport()">
+🖨️ PRINT PDF
+</button>
+
+</div>
+
+
+<script>
+
+function loadReport(){
+
+let trips = JSON.parse(localStorage.getItem("trips")) || [];
+let selectedMonth = document.getElementById("monthSelect").value;
+let html = "";
+
+let totalKM = 0;
+let totalOT = 0;
+let totalTrip = 0;
+
+
+trips.forEach(function(trip){
+
+let tripMonth = new Date(trip.date)
+.toISOString()
+.substring(0,7);
+
+if(selectedMonth && tripMonth !== selectedMonth){
+return;
+}
+totalTrip++;
+
+let km = Number(trip.distance) || 0;
+
+totalKM += km;
+if(trip.ot){
+
+totalOT += Number(trip.ot);
+
+}
+
+
+html += `
+
+<div class="card">
+
+<h3>📅 ${trip.date}</h3>
+
+<p>
+🕒 ${trip.startTime} → ${trip.endTime}
+</p>
+
+<p>
+📍 Destinasi: ${trip.destination}
+</p>
+
+<p>
+📝 Tujuan: ${trip.purpose}
+</p>
+
+<p>
+🚗 Jarak: ${km} KM
+</p>
+
+</div>
+
+`;
+
+});
+
+
+html += `
+
+<hr>
+
+<h3>SUMMARY</h3>
+
+<p>
+🚗 Jumlah Trip: ${totalTrip}
+</p>
+
+<p>
+📏 Jumlah KM: ${totalKM} KM
+</p>
+<p>
+⏱️ Jumlah OT: ${totalOT} Jam
+</p>
+
+<p>
+💰 Nilai OT: RM ${totalOT * 20}
+</p>
+
+`;
+
+
+document.getElementById("report").innerHTML = html;
+
+
+}
+function printReport(){
+
+window.print();
+
+}
+
+loadReport();
+
+</script>
+
+<script src="js/theme.js"></script>
+
+<script src="js/menu.js"></script>
+
+</body>
+</html>

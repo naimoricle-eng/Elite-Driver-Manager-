@@ -4,6 +4,8 @@
 <head>
     <title>Elite Driver Manager</title>
     <link rel="stylesheet" href="css/style.css">
+    <link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#B6FF2E">
     
 
     <!-- TAMBAHAN CSS ANIMASI PUSING UNTUK LOGO -->
@@ -171,6 +173,12 @@ toggle.onclick = function () {
     <!-- Fail sokongan bahasa di bahagian paling bawah -->
     <script src="js/language.js"></script>
     
-
+<script>
+if ("serviceWorker" in navigator) {
+  navigator.serviceWorker.register("service-worker.js")
+    .then(() => console.log("Service Worker Registered"))
+    .catch(err => console.log(err));
+}
+</script>
 </body>
 </html>

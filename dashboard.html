@@ -250,20 +250,43 @@ getDocs
 from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 let selfieFile = null;
-  document.getElementById("selfieInput").addEventListener("change", function(e){
+  document.getElementById("selfieInput").addEventListener("change", async function(e){
 
-    if(e.target.files.length > 0){
-
-        selfieFile = e.target.files[0];
-
-        console.log("Selfie dipilih");
-
-    }else{
-
-        selfieFile = null;
-
+    if(e.target.files.length === 0){
+        alert("Sila ambil selfie dahulu.");
+        return;
     }
 
+    selfieFile = e.target.files[0];
+
+    console.log("Selfie dipilih");
+
+    // Teruskan proses Check In di Part 3
+    if(!currentUser){
+alert("Sila tunggu sistem siap loading");
+return;
+}
+
+
+// SEMAK CHECK IN AKTIF
+
+
+
+
+
+let now=new Date();
+
+
+localStorage.setItem(
+"checkIn",
+now
+);
+
+
+localStorage.setItem(
+"status",
+"Driving"
+);
 });
 
 let driverName = "Unknown";
@@ -466,60 +489,20 @@ async function compressImage(file){
 // ===============================
 
 document.getElementById("btn-checkin").onclick=async function(){
-  document.getElementById("selfieInput").value = "";
+ // Reset selfie
 selfieFile = null;
 
-document.getElementById("selfieInput").click();
-await new Promise((resolve)=>{
+const input = document.getElementById("selfieInput");
+input.value = "";
 
-    const input = document.getElementById("selfieInput");
+// Buka kamera
+input.click();
 
-    input.onchange = function(){
-
-        if(input.files.length > 0){
-
-            selfieFile = input.files[0];
-
-        }
-
-        resolve();
-
-    };
-
-});
-if(!selfieFile){
-
-    alert("Sila ambil selfie dahulu.");
-
-    return;
-
-}
-
-if(!currentUser){
-alert("Sila tunggu sistem siap loading");
+// Berhenti dahulu.
+// Sambung Check In selepas gambar dipilih.
 return;
-}
 
 
-// SEMAK CHECK IN AKTIF
-
-
-
-
-
-let now=new Date();
-
-
-localStorage.setItem(
-"checkIn",
-now
-);
-
-
-localStorage.setItem(
-"status",
-"Driving"
-);
 
 
 

@@ -45,6 +45,13 @@
 <span>CHECK OUT</span>
 </button>
 
+<!-- SELFIE CAMERA -->
+<input
+type="file"
+id="selfieInput"
+accept="image/*"
+capture="user"
+style="display:none;">
 
 <button id="btn-location">
 📍
@@ -214,8 +221,9 @@ RM 0
 
 </div>
 <script type="module">
+ 
 
-import { auth , db } from "./js/firebase.js";
+import { auth, db, storage } from "./js/firebase.js";
 
 import {
 onAuthStateChanged
@@ -247,6 +255,28 @@ where,
 getDocs
 }
 from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+import {
+ref,
+uploadBytes,
+getDownloadURL
+}
+from "https://www.gstatic.com/firebasejs/10.12.2/firebase-storage.js";
+let selfieFile = null;
+  document.getElementById("selfieInput").addEventListener("change", function(e){
+
+    if(e.target.files.length > 0){
+
+        selfieFile = e.target.files[0];
+
+        console.log("Selfie dipilih");
+
+    }else{
+
+        selfieFile = null;
+
+    }
+
+});
 
 let driverName = "Unknown";
 let userRole = "driver";
@@ -255,6 +285,8 @@ let driverEmail = "";
 let otRate = 20;
 let userReady = false;
 let currentUser = null;
+
+ 
 
 
 // ===============================
@@ -388,7 +420,22 @@ async function getLocationName(lat, lon){
 }
 
 
+async function uploadSelfie(uid){
 
+    if(!selfieFile){
+        return "";
+    }
+
+    const fileRef = ref(
+        storage,
+        `selfie/${uid}_${Date.now()}.jpg`
+    );
+
+    await uploadBytes(fileRef, selfieFile);
+
+    return await getDownloadURL(fileRef);
+
+}
 
 
 // ===============================
@@ -396,6 +443,34 @@ async function getLocationName(lat, lon){
 // ===============================
 
 document.getElementById("btn-checkin").onclick=async function(){
+  document.getElementById("selfieInput").value = "";
+selfieFile = null;
+
+document.getElementById("selfieInput").click();
+await new Promise((resolve)=>{
+
+    const input = document.getElementById("selfieInput");
+
+    input.onchange = function(){
+
+        if(input.files.length > 0){
+
+            selfieFile = input.files[0];
+
+        }
+
+        resolve();
+
+    };
+
+});
+if(!selfieFile){
+
+    alert("Sila ambil selfie dahulu.");
+
+    return;
+
+}
 
 if(!currentUser){
 alert("Sila tunggu sistem siap loading");
@@ -558,7 +633,7 @@ return;
 
 }
 
-
+const selfieURL = await uploadSelfie(currentUser.uid);
 const ref = await addDoc(collection(db,"attendance"),{
   
 
@@ -571,6 +646,12 @@ position:driverPosition,
 email:driverEmail,
 
 role: userRole,
+
+selfie: selfieURL,
+
+latitude: lat,
+
+longitude: lon,
 
 status: "Working",
 

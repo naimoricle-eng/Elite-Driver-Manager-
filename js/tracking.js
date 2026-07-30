@@ -67,6 +67,9 @@ return;
 lastLat = lat;
 lastLon = lon;
 
+const status =
+localStorage.getItem("status") || "Driving";
+
 await addDoc(
 
 collection(
@@ -78,9 +81,10 @@ attendanceID,
 
 {
 
-latitude:lat,
-longitude:lon,
-time:serverTimestamp()
+latitude: lat,
+longitude: lon,
+status: status,
+time: serverTimestamp()
 
 }
 

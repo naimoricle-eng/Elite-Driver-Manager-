@@ -1,1 +1,41 @@
+name: Build Elite Driver Manager APK
 
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+
+jobs:
+  build:
+
+    runs-on: ubuntu-latest
+
+    steps:
+
+      - name: Checkout
+        uses: actions/checkout@v4
+
+
+      - name: Setup JDK
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v3
+
+
+      - name: Build APK
+        run: |
+          cd android-wrapper
+          ./gradlew assembleRelease
+
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: Elite-Driver-Manager-APK
+          path: android-wrapper/app/build/outputs/apk/release/*.apk

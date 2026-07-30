@@ -223,24 +223,17 @@ RM 0
 <script type="module">
  
 
-import { auth, db, storage } from "./js/firebase.js";
+import { auth, db, } from "./js/firebase.js";
 
 import {
 onAuthStateChanged
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 
 import {
-startTracking
+startTracking,
+stopTracking
 } from "./js/tracking.js";
-onAuthStateChanged(auth,(user)=>{
 
-if(user){
-
-startTracking(user.uid);
-
-}
-
-});
 
 
 import {
@@ -255,12 +248,7 @@ where,
 getDocs
 }
 from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import {
-ref,
-uploadBytes,
-getDownloadURL
-}
-from "https://www.gstatic.com/firebasejs/10.12.2/firebase-storage.js";
+
 let selfieFile = null;
   document.getElementById("selfieInput").addEventListener("change", function(e){
 
@@ -348,6 +336,7 @@ if (userDoc.exists()) {
     otRate = data.otRate;
 
     userReady = true;
+    await loadAttendanceStatus();
 }
 
 }
@@ -378,20 +367,7 @@ Math.sqrt(1-a)
 );
 
 }
-function stopTracking(){
 
-    if(watchID !== null){
-
-        navigator.geolocation.clearWatch(watchID);
-
-        watchID = null;
-
-        console.log("Tracking dihentikan");
-
-    }
-
-
-}
 // ===============================
 // GET NAMA TEMPAT
 // ===============================
@@ -420,20 +396,67 @@ async function getLocationName(lat, lon){
 }
 
 
-async function uploadSelfie(uid){
+async function convertToBase64(file){
 
-    if(!selfieFile){
-        return "";
-    }
+    return new Promise((resolve, reject)=>{
 
-    const fileRef = ref(
-        storage,
-        `selfie/${uid}_${Date.now()}.jpg`
-    );
+        const reader = new FileReader();
 
-    await uploadBytes(fileRef, selfieFile);
+        reader.readAsDataURL(file);
 
-    return await getDownloadURL(fileRef);
+        reader.onload = ()=>{
+
+            resolve(reader.result);
+
+        };
+
+        reader.onerror = (error)=>{
+
+            reject(error);
+
+        };
+
+    });
+
+}
+async function compressImage(file){
+
+    return new Promise((resolve)=>{
+
+        const img = new Image();
+
+        const reader = new FileReader();
+
+        reader.onload = function(e){
+
+            img.src = e.target.result;
+
+        };
+
+        img.onload = function(){
+
+            const canvas = document.createElement("canvas");
+
+            const ctx = canvas.getContext("2d");
+
+            const size = 300;
+
+            canvas.width = size;
+            canvas.height = size;
+
+            ctx.drawImage(img, 0, 0, size, size);
+
+            canvas.toBlob(function(blob){
+
+                resolve(blob);
+
+            }, "image/jpeg", 0.6);
+
+        };
+
+        reader.readAsDataURL(file);
+
+    });
 
 }
 
@@ -633,7 +656,9 @@ return;
 
 }
 
-const selfieURL = await uploadSelfie(currentUser.uid);
+const compressed = await compressImage(selfieFile);
+
+const selfieBase64 = await convertToBase64(compressed);
 const ref = await addDoc(collection(db,"attendance"),{
   
 
@@ -647,7 +672,7 @@ email:driverEmail,
 
 role: userRole,
 
-selfie: selfieURL,
+selfie: selfieBase64,
 
 latitude: lat,
 
@@ -672,7 +697,7 @@ ref.id
 document.getElementById("btn-checkin").disabled = true;
 document.getElementById("btn-checkout").disabled = false;
 saveTracking(lat, lon, "MULA");
-startTracking(currentUser.uid);
+startTracking();
 
 alert("✅ Check In Berjaya");
 localStorage.setItem(
@@ -682,22 +707,27 @@ now
 
 localStorage.setItem(
 "status",
-"Driving"
+"Driving");
+},
+function(error){
+
+    alert("❌ Sila hidupkan GPS dan benarkan akses lokasi sebelum Check In.");
+
+},
+{
+    enableHighAccuracy:true,
+    timeout:10000,
+    maximumAge:0
+}
 );
 
-});
+}else{
+
+    alert("Browser tidak menyokong GPS");
 
 }
 
-
 };
-
-
-
-
-
-
-
 
 
 
@@ -1096,7 +1126,44 @@ otMoney
 // ===============================
 // LOAD DATA SEMULA
 // ===============================
+async function loadAttendanceStatus(){
 
+    if(!currentUser) return;
+
+    const q = query(
+        collection(db,"attendance"),
+        where("uid","==",currentUser.uid),
+        where("status","==","Working")
+    );
+
+    const snap = await getDocs(q);
+
+    if(!snap.empty){
+
+        const attendanceDoc = snap.docs[0];
+
+        localStorage.setItem(
+            "attendanceID",
+            attendanceDoc.id
+        );
+
+        document.getElementById("btn-checkin").disabled = true;
+        document.getElementById("btn-checkout").disabled = false;
+
+        startTracking();
+
+    }else{
+
+        localStorage.removeItem("attendanceID");
+
+        document.getElementById("btn-checkin").disabled = false;
+        document.getElementById("btn-checkout").disabled = true;
+
+        stopTracking();
+
+    }
+
+}
 window.onload=function(){
 
 

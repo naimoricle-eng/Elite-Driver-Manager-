@@ -1,7 +1,9 @@
 /* Basic layout + moved styles from route.html */
 html,body{height:100%;margin:0;font-family:system-ui,Segoe UI,Roboto,Helvetica,Arial}
-#map{height:40vh}
-#timeline{height:60vh; overflow:auto; background:#fff; padding:12px}
+/* Use a robust flex layout so #map gets a real height on mobile and WebViews */
+body{display:flex;flex-direction:column;min-height:100vh}
+#map{flex:1 1 40%;min-height:250px}
+#timeline{flex:1 1 60%;overflow:auto;background:#fff;padding:12px}
 .leaflet-container svg path { stroke-linecap: round; stroke-linejoin: round; }
 
 /* Timeline */

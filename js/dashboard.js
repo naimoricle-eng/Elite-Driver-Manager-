@@ -325,6 +325,12 @@ function initCheckinHandler() {
 
       showToast(`Lokasi: ${place}`);
 
+      // update step indicator and enable selfie button
+      const stepLocationStatus = $("stepLocationStatus");
+      const btnSelfieEl = $("btn-selfie");
+      if (stepLocationStatus) { stepLocationStatus.textContent = "✓"; stepLocationStatus.className = "step-ok"; }
+      if (btnSelfieEl) btnSelfieEl.disabled = false;
+
       // Check for active attendance for today
       try {
         const today = new Date().toLocaleDateString();
@@ -342,6 +348,8 @@ function initCheckinHandler() {
           showToast("❌ Anda masih belum Check Out.");
           // clear pending location
           pendingCheckin.lat = pendingCheckin.lon = pendingCheckin.place = null;
+          if (stepLocationStatus) { stepLocationStatus.textContent = "✖"; stepLocationStatus.className = "step-pending"; }
+          if (btnSelfieEl) btnSelfieEl.disabled = true;
           return;
         }
       } catch (err) {
@@ -383,6 +391,10 @@ function initCheckinHandler() {
       return;
     }
 
+    // update step indicator
+    const stepSelfieStatus = $("stepSelfieStatus");
+    if (stepSelfieStatus) { stepSelfieStatus.textContent = "✓"; stepSelfieStatus.className = "step-ok"; }
+
     // Show slide-to-confirm now that location + selfie are present
     showSlideConfirm();
     setTimeout(() => sliderKnob.focus(), 100);
@@ -401,8 +413,8 @@ async function doFinalCheckin() {
   }
 
   try {
-    const compressed = await compressImage(pendingCheckin.selfie);
-    const selfieBase64 = await convertToBase64(compressed);
+    // DISCARD the selfie file: do not convert or store it anywhere
+    pendingCheckin.selfie = null;
 
     const ref = await addDoc(collection(db, "attendance"), {
       uid: currentUser.uid,
@@ -410,14 +422,16 @@ async function doFinalCheckin() {
       position: driverPosition,
       email: driverEmail,
       role: userRole,
-      selfie: selfieBase64,
       latitude: pendingCheckin.lat,
       longitude: pendingCheckin.lon,
       location: pendingCheckin.place,
       status: "Working",
       trackingStatus: "Running",
       checkIn: serverTimestamp(),
-      createdAt: serverTimestamp()
+      createdAt: serverTimestamp(),
+      // verification fields only
+      selfieVerified: true,
+      selfieVerifiedAt: serverTimestamp()
     });
 
     localStorage.setItem("attendanceID", ref.id);
@@ -452,8 +466,17 @@ async function doFinalCheckin() {
     showToast("Check in successful");
     showGreeting(driverName);
 
-    // clear pending selfie but keep location if needed
-    pendingCheckin.selfie = null;
+    // reset step indicators and disable selfie until next location
+    const stepLocationStatus = $("stepLocationStatus");
+    const stepSelfieStatus = $("stepSelfieStatus");
+    const btnSelfieEl = $("btn-selfie");
+    if (stepLocationStatus) { stepLocationStatus.textContent = "✖"; stepLocationStatus.className = "step-pending"; }
+    if (stepSelfieStatus) { stepSelfieStatus.textContent = "✖"; stepSelfieStatus.className = "step-pending"; }
+    if (btnSelfieEl) btnSelfieEl.disabled = true;
+
+    // keep location in localStorage but clear pending
+    pendingCheckin.lat = pendingCheckin.lon = pendingCheckin.place = null;
+
   } catch (err) {
     console.error("Check-in failed:", err);
     showToast("❌ Gagal semasa Check In.");
@@ -652,6 +675,11 @@ document.addEventListener("DOMContentLoaded", () => {
         pendingCheckin.lon = lon;
         pendingCheckin.place = place;
         showToast(`Lokasi: ${place}`);
+        // update step indicator and enable selfie button
+        const stepLocationStatus = $("stepLocationStatus");
+        const btnSelfieEl = $("btn-selfie");
+        if (stepLocationStatus) { stepLocationStatus.textContent = "✓"; stepLocationStatus.className = "step-ok"; }
+        if (btnSelfieEl) btnSelfieEl.disabled = false;
       }, (err) => {
         console.warn("Location error:", err);
         showToast("Gagal mendapatkan lokasi.");

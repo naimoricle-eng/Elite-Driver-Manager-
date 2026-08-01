@@ -1,511 +1,65 @@
 <!DOCTYPE html>
 <html lang="ms">
-
 <head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Driver Route</title>
 
-<title>Driver Route</title>
-
-<meta name="viewport" content="width=device-width, initial-scale=1">
-
-<link rel="stylesheet" href="./css/route.css" />
-
-<link rel="stylesheet"
-href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
-
+  <link rel="stylesheet" href="./css/route.css" />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
 </head>
-
 <body>
+  <div id="map" role="application" aria-label="Peta perjalanan"></div>
 
-<div id="map"></div>
-
-<div id="timeline">
-
-<div class="timeline-header">
-  <h3>📍 TRIP TIMELINE</h3>
-  <div>
-    <button id="saveHistoryBtn" class="btn small">Save Day History</button>
-  </div>
-</div>
-
-<div id="timelineList">
-Loading...
-</div>
-
-</div>
-
-<!-- Floating Action Button (keeps UI similar to Google Timeline) -->
-<div class="fab" aria-hidden="false">
-  <div class="actions hide" id="fabActions">
-    <div style="display:flex;align-items:center;">
-      <button id="editDayBtn"><span>Edit day</span></button>
-      <div class="icon-circle" title="edit">✏️</div>
-    </div>
-    <div style="display:flex;align-items:center;">
-      <button id="addVisitBtn"><span>Add visit</span></button>
-      <div class="icon-circle" title="add">📍</div>
-    </div>
-    <div style="display:flex;align-items:center;">
-      <button id="addNoteBtn"><span>Add note</span></button>
-      <div class="icon-circle" title="note">🗒️</div>
-    </div>
-    <div style="display:flex;align-items:center;">
-      <button id="deleteDayBtn"><span>Delete day</span></button>
-      <div class="icon-circle" title="delete">🗑️</div>
-    </div>
-  </div>
-
-  <div>
-    <button class="main" id="fabMain" aria-label="Open menu">✕</button>
-  </div>
-</div>
-
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-
-<script type="module">
-
-// Firebase DB already exported from your existing ./js/firebase.js
-import { db } from "./js/firebase.js";
-
-import {
-  collection,
-  getDocs,
-  getDoc,
-  doc,
-  query,
-  orderBy,
-  updateDoc
-} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-
-/*
-  OSRM-only + timestamp-sync version
-  - Uses OSRM Match API to snap points to roads
-  - Builds time-mapped matched positions so the animated marker is at the matched road location
-    corresponding to each original recorded timestamp (interpolated between them)
-  - Falls back to raw polyline if OSRM fails
-  - Stop detection still uses raw recorded points
-
-  Note: Public OSRM endpoint may have CORS/rate limits. For production, self-host OSRM or use a paid provider.
-*/
-
-const map = L.map("map").setView([3.1390,101.6869],11);
-
-L.tileLayer(
-  "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
-  {
-    maxZoom:19
-  }
-).addTo(map);
-
-// minimal inline styles to make FAB & rounded polyline visible (in case css file is missing)
-const styleEl = document.createElement('style');
-styleEl.innerHTML = `
-  html,body{height:100%;margin:0}
-  #map{height:40vh}
-  #timeline{height:60vh; overflow:auto; background:#fff; padding:12px}
-  .leaflet-container svg path { stroke-linecap: round; stroke-linejoin: round; }
-  .fab { position: fixed; bottom: 26px; right: 18px; z-index: 9999; display:flex; align-items:center; gap:10px; pointer-events: none; }
-  .fab .actions { display: flex; flex-direction: column; gap: 12px; margin-right: 12px; align-items: flex-end; pointer-events: auto; }
-  .fab button { pointer-events: auto; border: none; background: #fff; padding: 10px 14px; border-radius: 8px; box-shadow: 0 6px 18px rgba(0,0,0,0.18); cursor: pointer; display:flex; align-items:center; }
-  .fab .main { width:56px; height:56px; border-radius:50%; background:#0ea5a4; color:#fff; font-size:28px; display:flex; align-items:center; justify-content:center; box-shadow: 0 10px 20px rgba(0,0,0,0.18); }
-  .fab .actions.hide { display:none; }
-  .fab .icon-circle { width:38px; height:38px; border-radius:50%; background:#fff; display:inline-flex; align-items:center; justify-content:center; box-shadow: 0 4px 10px rgba(0,0,0,0.12); }
-  .timeline-item strong { display:block; font-size:16px; }
-  .timeline-item { padding:14px 8px; border-left:4px solid #00a3b5; margin-bottom:8px; background:#fff }
-  /* Hide the floating X FAB: the app uses per-point controls in the timeline instead */
-  .fab { display: none !important; }
-`;
-document.head.appendChild(styleEl);
-
-// FAB behavior
-const fabMain = document.getElementById('fabMain');
-const fabActions = document.getElementById('fabActions');
-// make handler defensive in case the FAB is removed entirely in future edits
-if(fabMain && fabActions){
-  fabMain.addEventListener('click', ()=>{
-    const open = !fabActions.classList.contains('hide');
-    if(open){
-      fabActions.classList.add('hide');
-      fabMain.textContent = '✕';
-    } else {
-      fabActions.classList.remove('hide');
-      fabMain.textContent = '×';
-    }
-  });
-}
-
-// get attendance ID from URL
-const params = new URLSearchParams(window.location.search);
-const attendanceID = params.get("id");
-console.log("ID:", attendanceID);
-
-if(!attendanceID){
-    alert("Attendance ID tidak dijumpai");
-    throw new Error("Attendance ID kosong");
-}
-
-const attendanceDoc = await getDoc(
-    doc(db,"attendance",attendanceID)
-);
-
-const attendanceData = attendanceDoc.data();
-console.log("Attendance:", attendanceData);
-
-// fetch tracking subcollection ordered by time
-const trackingQuery = query(
-    collection(
-        db,
-        "attendance",
-        attendanceID,
-        "tracking"
-    ),
-    orderBy("time","asc")
-);
-
-const trackingSnap = await getDocs(trackingQuery);
-
-if(trackingSnap.empty){
-    alert("Tiada data tracking");
-    throw new Error("Tiada data tracking");
-}
-
-// Build an array of points with times and refs for easy manipulation
-let points = []; // {lat, lng, timeMs, place, docRef, raw}
-trackingSnap.docs.forEach((d)=>{
-  const data = d.data();
-  let ts = null;
-  if(data.time){
-    if(data.time.toDate){
-      ts = data.time.toDate();
-    } else {
-      ts = new Date(data.time);
-    }
-  } else {
-    ts = new Date(); // fallback
-  }
-  points.push({
-    lat: Number(data.latitude),
-    lng: Number(data.longitude),
-    timeMs: ts.getTime(),
-    place: data.place || null,
-    docRef: d.ref,
-    raw: data
-  });
-});
-
-// helper distance (km)
-function calculateDistance(lat1, lon1, lat2, lon2){
-    let R = 6371; // KM
-    let dLat = (lat2-lat1) * Math.PI / 180;
-    let dLon = (lon2-lon1) * Math.PI / 180;
-    let a =
-    Math.sin(dLat/2) * Math.sin(dLat/2) +
-    Math.cos(lat1*Math.PI/180) *
-    Math.cos(lat2*Math.PI/180) *
-    Math.sin(dLon/2) *
-    Math.sin(dLon/2);
-    let c = 2 * Math.atan2(
-        Math.sqrt(a),
-        Math.sqrt(1-a)
-    );
-    return R * c;
-}
-
-// nearest snapped vertex fallback
-function nearestVertex(latlngs, lat, lng){
-  let bestIdx = 0;
-  let bestDist = Infinity;
-  for(let i=0;i<latlngs.length;i++){
-    const d = calculateDistance(lat, lng, latlngs[i][0], latlngs[i][1]);
-    if(d < bestDist){ bestDist = d; bestIdx = i; }
-  }
-  return {latlng: latlngs[bestIdx], index: bestIdx, distKm: bestDist};
-}
-
-// Create timeline HTML with Add Visit buttons for missing places
-const timelineList = document.getElementById("timelineList");
-let totalDistance = 0;
-let timelineHTML = "";
-
-// ensure sorted by time and numeric coercion already done
-points.sort((a,b)=> a.timeMs - b.timeMs);
-
-for(let i=0;i<points.length;i++){
-  const p = points[i];
-  // compute distance to previous
-  if(i>0){
-    totalDistance += calculateDistance(
-      points[i-1].lat, points[i-1].lng,
-      p.lat, p.lng
-    );
-  }
-
-  // formatted time
-  let timeStr = "-";
-  try{
-    timeStr = new Date(p.timeMs).toLocaleString("ms-MY");
-  }catch(e){}
-
-  // determine if there is a long stop after this point (look at delta to next point)
-  let stopAfter = false;
-  if(i < points.length - 1){
-    const deltaMs = points[i+1].timeMs - p.timeMs;
-    const distKm = calculateDistance(p.lat,p.lng, points[i+1].lat, points[i+1].lng);
-    // treat as stop if delta >= 5 minutes and movement small (<0.05 km => 50m)
-    if(deltaMs >= 5*60*1000 && distKm <= 0.05){
-      stopAfter = true;
-    }
-  }
-
-  // If place is missing, show missing visit UI
-  if(!p.place && stopAfter){
-    timelineHTML += `
-      <div class="timeline-item" id="timeline-item-${i}">
-        <div style="display:flex;justify-content:space-between;align-items:center;">
-          <div>
-            <strong style="color:#d32f2f">Missing visit</strong><br>
-            <small>Left at ${timeStr}</small>
-          </div>
-          <div>
-            <button class="btn-outline small" onclick="addVisit(${i})">+ Add visit</button>
-          </div>
-        </div>
+  <div id="timeline" aria-live="polite">
+    <div class="timeline-header">
+      <h3>📍 TRIP TIMELINE</h3>
+      <div>
+        <button id="saveHistoryBtn" class="btn small" aria-label="Save day history">Save Day History</button>
       </div>
-    `;
-  } else {
-    timelineHTML += `
-      <div class="timeline-item" id="timeline-item-${i}">
-        <div><strong>${p.place ? p.place : "Tracking Point"}</strong></div>
-        <div style="color:#666">${timeStr}</div>
-        ${!p.place ? `<div class="add-visit"><button class="btn-outline small" onclick="addVisit(${i})">Add visit</button></div>` : ''}
-      </div>
-    `;
-  }
-}
-
-timelineHTML += `
-  <div class="timeline-item">
-    <div><strong>🚗 Total Distance</strong></div>
-    <div style="font-size:18px">${totalDistance.toFixed(2)} KM</div>
+    </div>
+    <div id="timelineList">Loading...</div>
   </div>
-`;
 
-timelineList.innerHTML = timelineHTML;
+  <!-- Floating Action Button (keeps UI similar to Google Timeline) -->
+  <div class="fab" aria-hidden="true" id="fab" style="display:none">
+    <div class="actions hide" id="fabActions" aria-hidden="true">
+      <div style="display:flex;align-items:center;">
+        <button id="editDayBtn" aria-label="Edit day"><span>Edit day</span></button>
+        <div class="icon-circle" title="edit">✏️</div>
+      </div>
+      <div style="display:flex;align-items:center;">
+        <button id="addVisitBtn" aria-label="Add visit"><span>Add visit</span></button>
+        <div class="icon-circle" title="add">📍</div>
+      </div>
+      <div style="display:flex;align-items:center;">
+        <button id="addNoteBtn" aria-label="Add note"><span>Add note</span></button>
+        <div class="icon-circle" title="note">🗒️</div>
+      </div>
+      <div style="display:flex;align-items:center;">
+        <button id="deleteDayBtn" aria-label="Delete day"><span>Delete day</span></button>
+        <div class="icon-circle" title="delete">🗑️</div>
+      </div>
+    </div>
 
-// route fallback points (raw)
-const rawRoutePoints = points.map(p=>[p.lat,p.lng]);
+    <div>
+      <button class="main" id="fabMain" aria-label="Open menu">✕</button>
+    </div>
+  </div>
 
-// Draw snapped route using OSRM Match API; return {latlngs, tracepoints}
-async function drawSnappedRoute(){
-  if(points.length < 2){
-    if(rawRoutePoints.length) L.polyline(rawRoutePoints, { color:"blue", weight:5 }).addTo(map);
-    return { latlngs: rawRoutePoints, tracepoints: null };
-  }
+  <!-- Modal for entering place names (replaces prompt) -->
+  <div id="placeModal" class="modal" aria-hidden="true" role="dialog" aria-modal="true">
+    <div class="modal-content" role="document">
+      <h4 id="placeModalTitle">Name this stop</h4>
+      <input id="placeModalInput" aria-label="Place name" />
+      <div class="modal-actions">
+        <button id="placeModalCancel">Cancel</button>
+        <button id="placeModalSave">Save</button>
+      </div>
+    </div>
+  </div>
 
-  // prepare coords as lon,lat
-  const coordPairs = points.map(p => `${p.lng},${p.lat}`).join(';');
-
-  try{
-    const osrmUrl = `https://router.project-osrm.org/match/v1/driving/${coordPairs}?geometries=geojson&overview=full`;
-    const res = await fetch(osrmUrl);
-    if(res.ok){
-      const json = await res.json();
-      if(json && json.matchings && json.matchings.length){
-        // combine matchings into a single coordinates array
-        let combined = [];
-        json.matchings.forEach(m => { if(m.geometry && m.geometry.coordinates) combined = combined.concat(m.geometry.coordinates); });
-        // dedupe consecutive coords
-        const dedup = [];
-        for(const c of combined){ const last = dedup[dedup.length-1]; if(!last || last[0] !== c[0] || last[1] !== c[1]) dedup.push(c); }
-        const snappedLatLngs = dedup.map(c => [c[1], c[0]]);
-
-        // draw visually now
-        const route = L.polyline(snappedLatLngs, { color: '#5b21b6', weight: 8, opacity: 0.98 }).addTo(map);
-        L.polyline(snappedLatLngs, { color: '#ffffff', weight: 12, opacity: 0.3, interactive:false }).addTo(map);
-        map.fitBounds(route.getBounds(), { padding: [40,40] });
-
-        return { latlngs: snappedLatLngs, tracepoints: json.tracepoints || null };
-      } else {
-        console.warn('OSRM returned no matchings, falling back to raw polyline');
-      }
-    } else {
-      console.warn('OSRM match failed', res.status, res.statusText);
-    }
-  }catch(err){ console.warn('OSRM request error', err); }
-
-  // last fallback: raw polyline
-  const pl = L.polyline(rawRoutePoints, { color:"blue", weight:6, opacity:0.95 }).addTo(map);
-  if(rawRoutePoints.length) map.fitBounds(pl.getBounds(), { padding: [30,30] });
-  return { latlngs: rawRoutePoints, tracepoints: null };
-}
-
-// Create a car icon
-const carIcon = L.divIcon({
-  html: `<div style="font-size:22px; transform: translate(-50%,-50%);">🚗</div>`,
-  className: '',
-  iconSize: [28,28],
-  iconAnchor: [14,14]
-});
-
-let movingMarker = null;
-
-// Build time-mapped matched positions array from OSRM tracepoints + snapped latlngs
-function buildTimeMappedPositions(latlngs, tracepoints){
-  const tmap = [];
-  for(let i=0;i<points.length;i++){
-    const p = points[i];
-    let matched = null;
-    if(tracepoints && tracepoints[i] && tracepoints[i].location){
-      const loc = tracepoints[i].location; // [lon, lat]
-      matched = [loc[1], loc[0]];
-    } else {
-      // fallback to nearest snapped vertex
-      matched = nearestVertex(latlngs, p.lat, p.lng).latlng;
-    }
-    tmap.push({ timeMs: p.timeMs, latlng: matched });
-  }
-  return tmap;
-}
-
-// Animate by timestamps: marker will be at tmap[i].latlng at time tmap[i].timeMs (compressed by speedFactor)
-async function animateTimeMapped(tmap){
-  if(!tmap || tmap.length <= 1) return;
-  if(!movingMarker) movingMarker = L.marker(tmap[0].latlng, { icon: carIcon }).addTo(map);
-  else movingMarker.setLatLng(tmap[0].latlng);
-
-  const speedFactor = 40; // compress real-world time by this factor
-  for(let i=0;i<tmap.length-1;i++){
-    const a = tmap[i];
-    const b = tmap[i+1];
-    let dt = b.timeMs - a.timeMs;
-    if(!dt || dt <= 0) dt = 2000;
-    const durationMs = Math.max(300, Math.floor(dt / speedFactor));
-    const frames = Math.max(6, Math.floor(durationMs / 30));
-    for(let f=1; f<=frames; f++){
-      const t = easeInOutQuad(f/frames);
-      const lat = a.latlng[0] + (b.latlng[0] - a.latlng[0]) * t;
-      const lng = a.latlng[1] + (b.latlng[1] - a.latlng[1]) * t;
-      movingMarker.setLatLng([lat,lng]);
-      // eslint-disable-next-line no-await-in-loop
-      await new Promise(res => setTimeout(res, Math.floor(durationMs/frames)));
-    }
-  }
-}
-
-function easeInOutQuad(t){ return t<0.5 ? 2*t*t : -1 + (4-2*t)*t; }
-
-// keep original stop detection & prompting logic based on raw recorded points
-async function animateAndDetectStops(pointsArray){
-  if(pointsArray.length <= 1) return;
-  const handledStops = new Set();
-  for(let i=0;i<pointsArray.length-1;i++){
-    if(i+1 < pointsArray.length - 1){
-      const deltaMs = pointsArray[i+2].timeMs - pointsArray[i+1].timeMs;
-      const distNext = calculateDistance(pointsArray[i+1].lat, pointsArray[i+1].lng, pointsArray[i+2].lat, pointsArray[i+2].lng);
-      if(deltaMs >= 5*60*1000 && distNext <= 0.05){
-        if(!handledStops.has(i+1)){
-          await new Promise(res => setTimeout(res, 120));
-          const defaultName = pointsArray[i+1].place || `Location (${pointsArray[i+1].lat.toFixed(5)}, ${pointsArray[i+1].lng.toFixed(5)})`;
-          const placeName = prompt(`You stopped for ${(deltaMs/60000).toFixed(0)} minutes here. Enter place name:`, defaultName);
-          if(placeName && placeName.trim() !== ""){
-            try{
-              if(pointsArray[i+1].docRef){
-                await updateDoc(pointsArray[i+1].docRef, { place: placeName });
-                pointsArray[i+1].place = placeName;
-                const el = document.getElementById(`timeline-item-${i+1}`);
-                if(el) el.querySelector('strong').innerText = placeName;
-              }
-            }catch(err){ console.error('Failed to update place', err); alert('Gagal menyimpan tempat ke Firestore: ' + err.message); }
-            addToLocalHistory({ type: 'stop', timeMs: pointsArray[i+1].timeMs, lat: pointsArray[i+1].lat, lng: pointsArray[i+1].lng, place: placeName, durationMin: Math.round(deltaMs/60000) });
-          } else {
-            addToLocalHistory({ type: 'stop', timeMs: pointsArray[i+1].timeMs, lat: pointsArray[i+1].lat, lng: pointsArray[i+1].lng, place: null, durationMin: Math.round(deltaMs/60000) });
-          }
-          handledStops.add(i+1);
-        }
-      }
-    }
-  }
-}
-
-// Local history saving function (stores an array per day/attendance)
-function addToLocalHistory(entry){
-  const dateKey = new Date().toISOString().slice(0,10); //yyyy-mm-dd
-  const localKey = `timeline_history_${attendanceID}_${dateKey}`;
-  let arr = [];
-  try{ const raw = localStorage.getItem(localKey); if(raw) arr = JSON.parse(raw); }catch(e){ arr = []; }
-  arr.push(entry);
-  try{ localStorage.setItem(localKey, JSON.stringify(arr)); console.log('Saved to local history', localKey, entry); }catch(e){ console.warn('Failed to save local history', e); }
-}
-
-// manual "Add visit" invoked by timeline buttons
-window.addVisit = async function(index){
-  const p = points[index];
-  if(!p) return alert('Point not found');
-  const defaultName = p.place || `Location (${p.lat.toFixed(5)}, ${p.lng.toFixed(5)})`;
-  const placeName = prompt('Enter place name for this visit:', defaultName);
-  if(placeName && placeName.trim() !== ""){
-    try{
-      if(p.docRef){
-        await updateDoc(p.docRef, { place: placeName });
-        p.place = placeName;
-        const el = document.getElementById(`timeline-item-${index}`);
-        if(el) el.querySelector('strong').innerText = placeName;
-        addToLocalHistory({ type: 'visit', timeMs: p.timeMs, lat: p.lat, lng: p.lng, place: placeName });
-        alert('Place saved.');
-      } else {
-        alert('No docRef available to update in Firestore.');
-      }
-    }catch(err){ console.error('Failed saving visit', err); alert('Gagal menyimpan ke Firestore: ' + err.message); }
-  }
-};
-
-// Save day history button
-document.getElementById("saveHistoryBtn").addEventListener("click", ()=>{
-  const dateKey = new Date().toISOString().slice(0,10);
-  const localKey = `timeline_history_${attendanceID}_${dateKey}`;
-  const raw = localStorage.getItem(localKey);
-  if(!raw){ alert("Tiada sejarah untuk hari ini disimpan lagi."); return; }
-  alert("Sejarah hari ini disimpan secara setempat (localStorage). Key: " + localKey);
-  console.log("Saved history:", localKey, JSON.parse(raw));
-});
-
-// Main: draw snapped route then animate (timestamp-synced) and detect stops
-(async function main(){
-  const result = await drawSnappedRoute();
-  const latlngs = result.latlngs;
-  const tracepoints = result.tracepoints;
-
-  if(latlngs && latlngs.length){
-    // build time-mapped positions using tracepoints when available
-    const tmap = buildTimeMappedPositions(latlngs, tracepoints);
-
-    // animate marker following timestamp-synced matched points
-    try{
-      await Promise.all([
-        animateTimeMapped(tmap),
-        animateAndDetectStops(points)
-      ]);
-    }catch(err){ console.error('Animation error:', err); }
-  }
-})();
-
-// Optionally: auto-save day summary
-(function autoSaveDaySummary(){
-  try{
-    const dateKey = new Date().toISOString().slice(0,10);
-    const summaryKey = `timeline_summary_${attendanceID}_${dateKey}`;
-    const summary = {
-      savedAt: new Date().toISOString(),
-      totalDistanceKm: totalDistance,
-      pointCount: points.length,
-      timestampSample: points.length ? new Date(points[0].timeMs).toISOString() : new Date().toISOString()
-    };
-    localStorage.setItem(summaryKey, JSON.stringify(summary));
-    console.log('Saved day summary:', summaryKey, summary);
-  }catch(e){console.warn('Failed save day summary', e);} 
-})();
-
-</script>
-
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script type="module" src="./js/route.js"></script>
 </body>
-
 </html>

@@ -78,17 +78,17 @@ import {
 
 /*
   Changes in this version:
-  - Use Mapbox Map Matching API to snap points to roads (requires MAPBOX_ACCESS_TOKEN)
-  - If matching succeeds, draw the snapped route and animate the car along the snapped geometry
-  - Fallback to raw polyline if Mapbox fails
-  - Keep existing Firestore updating / timeline / stop detection logic
-  - Add a floating action button (FAB) UI
+  - Try Mapbox Map Matching if token is set; otherwise try the public OSRM match endpoint.
+  - Draw snapped route (road-following) and animate the car along the snapped geometry.
+  - Keep stop detection based on raw recorded points (unchanged) and timeline behavior.
 
-  IMPORTANT: Replace the MAPBOX_ACCESS_TOKEN placeholder with your token.
+  Notes:
+  - Mapbox requires an access token (replace MAPBOX_ACCESS_TOKEN below).
+  - Public OSRM (router.project-osrm.org) is available for testing but may have CORS/rate limits and is not guaranteed for production.
 */
 
-// Set your Mapbox token here (replace with actual token)
-const MAPBOX_ACCESS_TOKEN = '<YOUR_MAPBOX_ACCESS_TOKEN>'; // <-- replace me
+// Set your Mapbox token here (replace with actual token) if you want to use Mapbox matching.
+const MAPBOX_ACCESS_TOKEN = '<YOUR_MAPBOX_ACCESS_TOKEN>'; // <-- replace me or leave empty to use OSRM
 
 const map = L.map("map").setView([3.1390,101.6869],11);
 
@@ -281,66 +281,62 @@ timelineList.innerHTML = timelineHTML;
 // route fallback points (raw)
 const rawRoutePoints = points.map(p=>[p.lat,p.lng]);
 
-// draw snapped route using Mapbox Map Matching
+// Draw snapped route: try Mapbox (if token) then OSRM; return snapped latlng array (lat,lng)
 async function drawSnappedRoute(){
   if(points.length < 2){
-    // nothing to draw
     if(rawRoutePoints.length) L.polyline(rawRoutePoints, { color:"blue", weight:5 }).addTo(map);
-    return null;
-  }
-
-  // build coordinate string lon,lat; Mapbox expects lon,lat
-  const coordPairs = points.map(p => `${p.lng},${p.lat}`).join(';');
-  // timestamps in seconds (improve matching) - include only if available
-  const timestamps = points.map(p => Math.floor(p.timeMs/1000)).join(';');
-
-  // Mapbox Map Matching endpoint
-  const url = `https://api.mapbox.com/matching/v5/mapbox/driving/${coordPairs}?geometries=geojson&overview=full&access_token=${MAPBOX_ACCESS_TOKEN}&timestamps=${timestamps}`;
-
-  try{
-    const res = await fetch(url);
-    if(!res.ok) throw new Error('Mapbox match failed: ' + res.status + ' ' + res.statusText);
-    const json = await res.json();
-
-    if(json && json.matchings && json.matchings.length){
-      // combine coordinates from all matchings
-      let combined = [];
-      json.matchings.forEach(m => {
-        if(m.geometry && m.geometry.coordinates && m.geometry.coordinates.length){
-          combined = combined.concat(m.geometry.coordinates);
-        }
-      });
-      // dedupe consecutive identical coords (small optimization)
-      const dedup = [];
-      for(const c of combined){
-        const last = dedup[dedup.length-1];
-        if(!last || last[0] !== c[0] || last[1] !== c[1]) dedup.push(c);
-      }
-      const snappedLatLngs = dedup.map(c => [c[1], c[0]]);
-
-      // draw primary route (purple) and pale outline for contrast
-      const route = L.polyline(snappedLatLngs, { color: '#5b21b6', weight: 8, opacity: 0.98 }).addTo(map);
-      L.polyline(snappedLatLngs, { color: '#ffffff', weight: 12, opacity: 0.3, interactive:false }).addTo(map);
-
-      map.fitBounds(route.getBounds(), { padding: [40,40] });
-
-      // start/end markers
-      L.circleMarker(snappedLatLngs[0], { radius:7, color:'#1f8ef1', fillColor:'#1f8ef1', fillOpacity:1 }).bindPopup('Start').addTo(map);
-      L.circleMarker(snappedLatLngs[snappedLatLngs.length-1], { radius:7, color:'#ef4444', fillColor:'#ef4444', fillOpacity:1 }).bindPopup('End').addTo(map);
-
-      return snappedLatLngs;
-    } else {
-      console.warn('Mapbox returned no matchings, falling back to raw polyline');
-      const pl = L.polyline(rawRoutePoints, { color:"blue", weight:6, opacity:0.95 }).addTo(map);
-      map.fitBounds(pl.getBounds(), { padding: [30,30] });
-      return rawRoutePoints;
-    }
-  }catch(err){
-    console.error('Mapbox matching error, using fallback polyline', err);
-    const pl = L.polyline(rawRoutePoints, { color:"blue", weight:6, opacity:0.95 }).addTo(map);
-    if(rawRoutePoints.length) map.fitBounds(pl.getBounds(), { padding: [30,30] });
     return rawRoutePoints;
   }
+
+  // prepare coords as lon,lat
+  const coordPairs = points.map(p => `${p.lng},${p.lat}`).join(';');
+  const timestamps = points.map(p => Math.floor(p.timeMs/1000)).join(';');
+
+  // try Mapbox if token provided
+  if(MAPBOX_ACCESS_TOKEN && !MAPBOX_ACCESS_TOKEN.includes('<YOUR_MAPBOX_ACCESS_TOKEN>')){
+    const mbUrl = `https://api.mapbox.com/matching/v5/mapbox/driving/${coordPairs}?geometries=geojson&overview=full&access_token=${MAPBOX_ACCESS_TOKEN}&timestamps=${timestamps}`;
+    try{
+      const res = await fetch(mbUrl);
+      if(res.ok){
+        const json = await res.json();
+        if(json && json.matchings && json.matchings.length){
+          let combined = [];
+          json.matchings.forEach(m => { if(m.geometry && m.geometry.coordinates) combined = combined.concat(m.geometry.coordinates); });
+          // dedupe
+          const dedup = [];
+          for(const c of combined){ const last = dedup[dedup.length-1]; if(!last || last[0] !== c[0] || last[1] !== c[1]) dedup.push(c); }
+          const snappedLatLngs = dedup.map(c => [c[1], c[0]]);
+          return snappedLatLngs;
+        }
+      } else {
+        console.warn('Mapbox match failed', res.status, res.statusText);
+      }
+    }catch(err){ console.warn('Mapbox request error', err); }
+  }
+
+  // fallback: try public OSRM match
+  try{
+    const osrmUrl = `https://router.project-osrm.org/match/v1/driving/${coordPairs}?geometries=geojson&overview=full`;
+    const res = await fetch(osrmUrl);
+    if(res.ok){
+      const json = await res.json();
+      if(json && json.matchings && json.matchings.length){
+        let combined = [];
+        json.matchings.forEach(m => { if(m.geometry && m.geometry.coordinates) combined = combined.concat(m.geometry.coordinates); });
+        const dedup = [];
+        for(const c of combined){ const last = dedup[dedup.length-1]; if(!last || last[0] !== c[0] || last[1] !== c[1]) dedup.push(c); }
+        const snappedLatLngs = dedup.map(c => [c[1], c[0]]);
+        return snappedLatLngs;
+      }
+    } else {
+      console.warn('OSRM match failed', res.status, res.statusText);
+    }
+  }catch(err){ console.warn('OSRM request error', err); }
+
+  // last fallback: raw polyline
+  const pl = L.polyline(rawRoutePoints, { color:"blue", weight:6, opacity:0.95 }).addTo(map);
+  if(rawRoutePoints.length) map.fitBounds(pl.getBounds(), { padding: [30,30] });
+  return rawRoutePoints;
 }
 
 // Create a car icon
@@ -353,26 +349,20 @@ const carIcon = L.divIcon({
 
 let movingMarker = null;
 
-// animate along a provided latlng array (snapped or raw)
+// animate along a provided latlng array (snapped or raw) — smoother using distance-weighted timing
 async function animateAlongLatLngs(latlngs, pointsArray){
   if(!latlngs || latlngs.length <= 1) return;
-  // place marker at first
-  if(!movingMarker){
-    movingMarker = L.marker(latlngs[0], { icon: carIcon }).addTo(map);
-  } else {
-    movingMarker.setLatLng(latlngs[0]);
-  }
+  if(!movingMarker){ movingMarker = L.marker(latlngs[0], { icon: carIcon }).addTo(map); } else { movingMarker.setLatLng(latlngs[0]); }
 
-  // We'll animate along the snapped latlngs with a constant speed approximation based on total duration
-  // Compute total recorded time from pointsArray
+  // compute total recorded time for compression
   const startTime = pointsArray[0].timeMs;
   const endTime = pointsArray[pointsArray.length-1].timeMs;
   let totalRecordedMs = endTime - startTime;
   if(!totalRecordedMs || totalRecordedMs <= 0) totalRecordedMs = 600000; // fallback 10min
-  const speedFactor = 40; // increase to compress more
+  const speedFactor = 40; // adjust to compress playback speed
   const totalMs = Math.max(1000, Math.floor(totalRecordedMs / speedFactor));
 
-  // build distances along snapped path
+  // compute distances per segment
   const segmentDistances = [];
   let totalDist = 0;
   for(let i=0;i<latlngs.length-1;i++){
@@ -381,30 +371,28 @@ async function animateAlongLatLngs(latlngs, pointsArray){
     totalDist += d;
   }
 
-  // If totalDist is zero fallback to equal-time segments
   for(let i=0;i<latlngs.length-1;i++){
     const frac = totalDist > 0 ? (segmentDistances[i]/totalDist) : (1/(latlngs.length-1));
     const segMs = Math.max(200, Math.floor(totalMs * frac));
     const frames = Math.max(6, Math.floor(segMs/30));
     for(let f=1; f<=frames; f++){
-      const t = f/frames;
+      const t = easeInOutQuad(f/frames);
       const lat = latlngs[i][0] + (latlngs[i+1][0] - latlngs[i][0]) * t;
       const lng = latlngs[i][1] + (latlngs[i+1][1] - latlngs[i][1]) * t;
       movingMarker.setLatLng([lat,lng]);
-      // small sleep
       // eslint-disable-next-line no-await-in-loop
       await new Promise(res => setTimeout(res, Math.floor(segMs/frames)));
     }
   }
 }
 
-// keep original stop detection & prompting logic but we will animate on snapped path
+function easeInOutQuad(t){ return t<0.5 ? 2*t*t : -1 + (4-2*t)*t; }
+
+// keep original stop detection & prompting logic based on raw recorded points
 async function animateAndDetectStops(pointsArray){
-  // detect stops using original points (unchanged)
   if(pointsArray.length <= 1) return;
   const handledStops = new Set();
   for(let i=0;i<pointsArray.length-1;i++){
-    // detect stop between i and i+1 as before
     if(i+1 < pointsArray.length - 1){
       const deltaMs = pointsArray[i+2].timeMs - pointsArray[i+1].timeMs;
       const distNext = calculateDistance(pointsArray[i+1].lat, pointsArray[i+1].lng, pointsArray[i+2].lat, pointsArray[i+2].lng);
@@ -477,23 +465,23 @@ document.getElementById("saveHistoryBtn").addEventListener("click", ()=>{
 
 // Main: draw snapped route then animate and detect stops
 (async function main(){
-  // draw snapped route (Mapbox) or fallback
-  let latlngs = null;
-  if(!MAPBOX_ACCESS_TOKEN || MAPBOX_ACCESS_TOKEN.includes('<YOUR_MAPBOX_ACCESS_TOKEN>')){
-    console.warn('Mapbox token not set or placeholder found — drawing raw polyline fallback. Set MAPBOX_ACCESS_TOKEN at top to enable snapping.');
-    const pl = L.polyline(rawRoutePoints, { color:"blue", weight:6, opacity:0.95 }).addTo(map);
-    if(rawRoutePoints.length) map.fitBounds(pl.getBounds(), { padding: [30,30] });
-    latlngs = rawRoutePoints;
-  } else {
-    latlngs = await drawSnappedRoute();
-  }
+  let latlngs = await drawSnappedRoute();
 
-  // animate along snapped latlngs if available, otherwise raw
+  // if drawSnappedRoute already added a polyline for raw points and returned raw, latlngs will be set
   if(latlngs && latlngs.length){
+    // draw route visually if not already drawn (drawSnappedRoute may not draw when returning snapped latlngs)
+    // we draw a visible route now for snapped latlngs
+    if(latlngs !== rawRoutePoints){
+      const route = L.polyline(latlngs, { color: '#5b21b6', weight: 8, opacity: 0.98 }).addTo(map);
+      L.polyline(latlngs, { color: '#ffffff', weight: 12, opacity: 0.3, interactive:false }).addTo(map);
+      map.fitBounds(route.getBounds(), { padding: [40,40] });
+    }
+
+    // animate marker along the snapped latlngs
     try{
       await Promise.all([
         animateAlongLatLngs(latlngs, points),
-        animateAndDetectStops(points) // detect/prompt stops in parallel (non-blocking)
+        animateAndDetectStops(points) // detect/prompt stops in parallel
       ]);
     }catch(err){ console.error('Animation error:', err); }
   }

@@ -677,6 +677,7 @@ body.light-theme .welcome-card{
 
     box-shadow:var(--shadow-hover);
 
+
 }
 
 
@@ -691,6 +692,7 @@ body.light-theme .welcome-card{
 
     margin-bottom:5px;
 
+
 }
 
 
@@ -701,6 +703,7 @@ body.light-theme .welcome-card{
 
 
     color:var(--text2);
+
 
 }
 
@@ -809,6 +812,7 @@ body.light-theme .welcome-card{
 
     object-fit:contain;
 
+
 }
 
 
@@ -878,6 +882,7 @@ body.light-theme .welcome-card{
 
     margin-bottom:15px;
 
+
 }
 
 
@@ -896,6 +901,7 @@ body.light-theme .welcome-card{
 
 
     gap:12px;
+
 
 }
 
@@ -953,6 +959,7 @@ body.light-theme .welcome-card{
 
     box-shadow:var(--shadow-hover);
 
+
 }
 
 
@@ -997,60 +1004,4 @@ body.light-theme .welcome-card{
 #map{
   width:100%;
   height:55vh;
-}
-
-#timeline{
-  padding:15px;
-  background:var(--card);
-  color:var(--text);
-  font-size:14px;
-  height:45vh;
-  overflow:auto;
-}
-
-#timeline .timeline-item{
-  padding:10px;
-  border-left:4px solid #2196f3;
-  margin-bottom:10px;
-  border-radius:4px;
-  background:transparent;
-}
-
-#timeline .timeline-header{
-  display:flex;
-  justify-content:space-between;
-  align-items:center;
-  margin-bottom:10px;
-}
-
-/* Scope route-specific button styles so global .btn isn't overridden */
-#timeline .btn {
-  display:inline-block;
-  padding:8px 12px;
-  background:#0f8583;
-  color:white;
-  border-radius:20px;
-  cursor:pointer;
-  font-size:14px;
-  width:auto; /* keep inline sizing for timeline buttons */
-}
-
-#timeline .btn-outline {
-  display:inline-block;
-  padding:6px 10px;
-  background:transparent;
-  color:#0f8583;
-  border:1px solid #0f8583;
-  border-radius:16px;
-  cursor:pointer;
-  font-size:13px;
-}
-
-#timeline .small {
-  padding:6px 8px;
-  font-size:12px;
-}
-
-#timeline .add-visit {
-  margin-top:8px;
 }

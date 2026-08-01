@@ -42,6 +42,9 @@ const pendingCheckin = {
   selfie: null
 };
 
+// If the user takes a selfie before location is available we queue it here
+let queuedSelfieFile = null;
+
 // Helpers: guarded DOM accessor
 const $ = id => document.getElementById(id);
 
@@ -294,7 +297,7 @@ function initCheckinHandler() {
     }
   });
 
-  // When user presses Check In: get location first, then selfie, then show slide
+  // When user presses Check In: open camera immediately (must be inside user gesture), then obtain location and proceed
   btnCheckin.addEventListener("click", async () => {
     if (!userReady) {
       showToast("Sila tunggu sistem siap loading.");
@@ -313,6 +316,16 @@ function initCheckinHandler() {
 
     showToast("Mendapatkan lokasi...");
 
+    // Open camera / file picker immediately to satisfy browser gesture requirements
+    try {
+      // Best-effort to pre-request camera (silent) and then open the input
+      await requestCameraThenSelfieInput().catch(() => {});
+    } finally {
+      selfieInput.value = "";
+      try { selfieInput.click(); } catch (e) { /* some browsers may prevent programmatic click */ }
+    }
+
+    // Start obtaining location; when it arrives we'll reconcile with any queued selfie
     navigator.geolocation.getCurrentPosition(async function (pos) {
       const lat = pos.coords.latitude;
       const lon = pos.coords.longitude;
@@ -324,12 +337,6 @@ function initCheckinHandler() {
       pendingCheckin.place = place;
 
       showToast(`Lokasi: ${place}`);
-
-      // update step indicator and enable selfie button
-      const stepLocationStatus = $("stepLocationStatus");
-      const btnSelfieEl = $("btn-selfie");
-      if (stepLocationStatus) { stepLocationStatus.textContent = "✓"; stepLocationStatus.className = "step-ok"; }
-      if (btnSelfieEl) btnSelfieEl.disabled = false;
 
       // Check for active attendance for today
       try {
@@ -346,8 +353,11 @@ function initCheckinHandler() {
         });
         if (active) {
           showToast("❌ Anda masih belum Check Out.");
-          // clear pending location
+          // clear pending location and queued selfie
           pendingCheckin.lat = pendingCheckin.lon = pendingCheckin.place = null;
+          queuedSelfieFile = null;
+          const stepLocationStatus = $("stepLocationStatus");
+          const btnSelfieEl = $("btn-selfie");
           if (stepLocationStatus) { stepLocationStatus.textContent = "✖"; stepLocationStatus.className = "step-pending"; }
           if (btnSelfieEl) btnSelfieEl.disabled = true;
           return;
@@ -356,12 +366,20 @@ function initCheckinHandler() {
         console.error("Attendance check failed:", err);
       }
 
-      // Request camera permission first (best-effort) then open file input
-      try {
-        await requestCameraThenSelfieInput().catch(() => {});
-      } finally {
-        selfieInput.value = "";
-        selfieInput.click();
+      // update step indicator and enable selfie button
+      const stepLocationStatus = $("stepLocationStatus");
+      const btnSelfieEl = $("btn-selfie");
+      if (stepLocationStatus) { stepLocationStatus.textContent = "✓"; stepLocationStatus.className = "step-ok"; }
+      if (btnSelfieEl) btnSelfieEl.disabled = false;
+
+      // If user already took a selfie (queued), use it and show slide
+      if (queuedSelfieFile) {
+        pendingCheckin.selfie = queuedSelfieFile;
+        queuedSelfieFile = null;
+        const stepSelfieStatus = $("stepSelfieStatus");
+        if (stepSelfieStatus) { stepSelfieStatus.textContent = "✓"; stepSelfieStatus.className = "step-ok"; }
+        showSlideConfirm();
+        setTimeout(() => sliderKnob.focus(), 100);
       }
 
     }, function (error) {
@@ -374,30 +392,34 @@ function initCheckinHandler() {
     });
   });
 
-  // Selfie input: set pendingCheckin.selfie, then show slide confirm
+  // Selfie input: set pendingCheckin.selfie (or queue it) then show slide confirm when location present
   selfieInput.addEventListener("change", async function (e) {
     if (!e.target.files || e.target.files.length === 0) {
       showToast("Sila ambil selfie dahulu.");
       return;
     }
 
-    pendingCheckin.selfie = e.target.files[0];
+    const file = e.target.files[0];
 
-    showToast("Selfie diterima. Sila luncurkan untuk mengesahkan.");
+    // If we already have a pending location, attach directly
+    if (pendingCheckin.lat) {
+      pendingCheckin.selfie = file;
+      showToast("Selfie diterima. Sila luncurkan untuk mengesahkan.");
 
-    // Ensure we have location; if not, ask to get location first
-    if (!pendingCheckin.lat) {
-      showToast("Sila dapatkan lokasi terlebih dahulu.");
-      return;
+      // update step indicator
+      const stepSelfieStatus = $("stepSelfieStatus");
+      if (stepSelfieStatus) { stepSelfieStatus.textContent = "✓"; stepSelfieStatus.className = "step-ok"; }
+
+      // Show slide-to-confirm now that location + selfie are present
+      showSlideConfirm();
+      setTimeout(() => sliderKnob.focus(), 100);
+    } else {
+      // Location not ready yet: queue the selfie file and mark selfie step
+      queuedSelfieFile = file;
+      showToast("Selfie diterima. Menunggu lokasi...");
+      const stepSelfieStatus = $("stepSelfieStatus");
+      if (stepSelfieStatus) { stepSelfieStatus.textContent = "✓"; stepSelfieStatus.className = "step-ok"; }
     }
-
-    // update step indicator
-    const stepSelfieStatus = $("stepSelfieStatus");
-    if (stepSelfieStatus) { stepSelfieStatus.textContent = "✓"; stepSelfieStatus.className = "step-ok"; }
-
-    // Show slide-to-confirm now that location + selfie are present
-    showSlideConfirm();
-    setTimeout(() => sliderKnob.focus(), 100);
   });
 }
 

@@ -4,8 +4,12 @@
 <head>
     <title>Elite Driver Manager</title>
     <link rel="stylesheet" href="css/style.css">
+    <!-- Add responsive fixes -->
+    <link rel="stylesheet" href="css/responsive-fixes.css">
     <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#B6FF2E">
+<!-- Viewport meta for proper mobile scaling -->
+<meta name="viewport" content="width=device-width, initial-scale=1">
     
 
     <!-- TAMBAHAN CSS ANIMASI PUSING UNTUK LOGO -->
@@ -34,7 +38,7 @@
     <div class="login-box">
 
         <!-- DITAMBAH ID PADA LOGO UNTUK MANIPULASI JAVASCRIPT -->
-        <img src="./images/logo.png" id="loginLogo" width="125" style="transition: all 0.5s ease;">
+        <img src="./images/logo.png" id="loginLogo" style="max-width:40%;height:auto;transition: all 0.5s ease;">
 
         <!-- BORANG LOG MASUK SOKONGAN BAHASA -->
         <h2 data-lang="login-title">Elite Driver Manager</h2>

@@ -7,7 +7,7 @@
 
 /*========================
  ROOT THEME
-========================*/
+ ========================*/
 
 :root{
 
@@ -42,7 +42,7 @@
 
 /*========================
  LIGHT THEME
-========================*/
+ ========================*/
 
 body.light-theme{
 
@@ -70,7 +70,7 @@ body.light-theme{
 
 /*========================
  RESET
-========================*/
+ ========================*/
 
 *{
 
@@ -97,7 +97,7 @@ html{
 
 /*========================
  BODY
-========================*/
+ ========================*/
 
 body{
 
@@ -123,7 +123,7 @@ body{
 
 /*========================
  TEXT
-========================*/
+ ========================*/
 
 h1{
 
@@ -168,7 +168,7 @@ p{
 
 /*========================
  LINK
-========================*/
+ ========================*/
 
 a{
 
@@ -182,7 +182,7 @@ a{
 
 /*========================
  LOGIN PAGE
-========================*/
+ ========================*/
 
 .auth-page,
 .login-page{
@@ -201,7 +201,7 @@ a{
 
 /*========================
  LOGIN CARD
-========================*/
+ ========================*/
 
 .auth-container,
 .login-card,
@@ -248,13 +248,14 @@ a{
 
     box-shadow:var(--shadow-hover);
 
+
 }
 
 
 
 /*========================
  LOGO LOGIN
-========================*/
+ ========================*/
 
 .auth-logo{
 
@@ -299,13 +300,14 @@ a{
 
     margin:0 auto 20px;
 
+
 }
 
 
 
 /*========================
  UNIVERSAL CARD
-========================*/
+ ========================*/
 
 .card,
 .trip-card,
@@ -360,13 +362,14 @@ a{
 
     box-shadow:var(--shadow-hover);
 
+
 }
 
 
 
 /*========================
  CARD TITLE
-========================*/
+ ========================*/
 
 .card-title{
 
@@ -384,7 +387,7 @@ a{
 
 /*========================
  CARD ROW
-========================*/
+ ========================*/
 
 .card-row{
 
@@ -411,7 +414,7 @@ a{
 
 /*========================
  FORM
-========================*/
+ ========================*/
 
 .form-group{
 
@@ -423,7 +426,7 @@ a{
 
 /*========================
  LABEL
-========================*/
+ ========================*/
 
 label{
 
@@ -447,7 +450,7 @@ label{
 
 /*========================
  INPUT
-========================*/
+ ========================*/
 
 input,
 select,
@@ -485,7 +488,7 @@ textarea{
 
 /*========================
  INPUT FOCUS
-========================*/
+ ========================*/
 
 input:focus,
 select:focus,
@@ -508,7 +511,7 @@ textarea:focus{
 
 /*========================
  PLACEHOLDER
-========================*/
+ ========================*/
 
 ::placeholder{
 
@@ -520,7 +523,7 @@ textarea:focus{
 
 /*========================
  TEXTAREA
-========================*/
+ ========================*/
 
 textarea{
 
@@ -538,7 +541,7 @@ textarea{
 
 /*========================
  DASHBOARD
-========================*/
+ ========================*/
 
 .dashboard{
 
@@ -574,7 +577,7 @@ textarea{
 
 /*========================
  WELCOME CARD
-========================*/
+ ========================*/
 
 .welcome-card{
 
@@ -604,7 +607,6 @@ textarea{
 }
 
 
-
 body.light-theme .welcome-card{
 
     background:#ffffff;
@@ -615,7 +617,7 @@ body.light-theme .welcome-card{
 
 /*========================
  STATISTICS GRID
-========================*/
+ ========================*/
 
 .stats-grid{
 
@@ -637,7 +639,7 @@ body.light-theme .welcome-card{
 
 /*========================
  STAT CARD
-========================*/
+ ========================*/
 
 .stat-card{
 
@@ -667,7 +669,6 @@ body.light-theme .welcome-card{
 }
 
 
-
 .stat-card:hover{
 
 
@@ -677,7 +678,6 @@ body.light-theme .welcome-card{
     box-shadow:var(--shadow-hover);
 
 }
-
 
 
 .stat-card h2{
@@ -694,7 +694,6 @@ body.light-theme .welcome-card{
 }
 
 
-
 .stat-card span{
 
 
@@ -709,7 +708,7 @@ body.light-theme .welcome-card{
 
 /*========================
  ACTION GRID
-========================*/
+ ========================*/
 
 .action-grid{
 
@@ -731,7 +730,7 @@ body.light-theme .welcome-card{
 
 /*========================
  ACTION ITEM
-========================*/
+ ========================*/
 
 .action-item{
 
@@ -773,7 +772,6 @@ body.light-theme .welcome-card{
 }
 
 
-
 .action-item:hover{
 
 
@@ -791,7 +789,7 @@ body.light-theme .welcome-card{
 
 /*========================
  ACTION ICON
-========================*/
+ ========================*/
 
 .action-item i,
 .action-item img{
@@ -817,7 +815,7 @@ body.light-theme .welcome-card{
 
 /*========================
  ACTION TEXT
-========================*/
+ ========================*/
 
 .action-item span{
 
@@ -845,7 +843,7 @@ body.light-theme .welcome-card{
 
 /*========================
  ACTION CARD
-========================*/
+ ========================*/
 
 .action-card{
 
@@ -872,7 +870,6 @@ body.light-theme .welcome-card{
 }
 
 
-
 .action-card h3{
 
 
@@ -887,7 +884,7 @@ body.light-theme .welcome-card{
 
 /*========================
  ACTION LIST
-========================*/
+ ========================*/
 
 .action-list{
 
@@ -901,7 +898,6 @@ body.light-theme .welcome-card{
     gap:12px;
 
 }
-
 
 
 .action-list button,
@@ -942,7 +938,6 @@ body.light-theme .welcome-card{
 }
 
 
-
 .action-list button:hover,
 .action-list a:hover{
 
@@ -961,10 +956,9 @@ body.light-theme .welcome-card{
 }
 
 
-
 /*========================
  BUTTON BASE
-========================*/
+ ========================*/
 
 .btn{
 
@@ -995,1821 +989,70 @@ body.light-theme .welcome-card{
 }
 
 
+/* ========================= REMAINING ORIGINAL style.css CONTENT OMITTED FOR THIS UPDATE ========================= */
 
-/*========================
- PRIMARY BUTTON
-========================*/
 
-.btn-primary{
+/* Moved from css/route.css */
 
-
-    background:var(--primary);
-
-
-    color:#000;
-
-}
-
-
-
-.btn-primary:hover{
-
-
-    transform:translateY(-3px);
-
-
-    box-shadow:
-
-    0 0 20px rgba(182,255,46,.6);
-
-}
-
-
-
-/*========================
- SUCCESS BUTTON
-========================*/
-
-.btn-success{
-
-
-    background:var(--success);
-
-
-    color:#000;
-
-}
-
-
-
-.btn-success:hover{
-
-
-    box-shadow:
-
-    0 0 20px rgba(0,230,118,.7);
-
-}
-
-
-
-/*========================
- DANGER BUTTON
-========================*/
-
-.btn-danger{
-
-
-    background:var(--danger);
-
-
-    color:#fff;
-
-}
-
-
-
-.btn-danger:hover{
-
-
-    box-shadow:
-
-    0 0 20px rgba(255,61,87,.7);
-
-}
-
-
-
-/*========================
- CHECK IN BUTTON
-========================*/
-
-.btn-in{
-
-
-    background:#4CAF50;
-
-
-    color:#fff;
-
-}
-
-
-
-.btn-in:hover{
-
-
-    transform:translateY(-3px);
-
-
-    box-shadow:
-
-    0 0 20px #4CAF50;
-
-}
-
-
-
-/*========================
- CHECK OUT BUTTON
-========================*/
-
-.btn-out{
-
-
-    background:#F44336;
-
-
-    color:#fff;
-
-}
-
-
-
-.btn-out:hover{
-
-
-    transform:translateY(-3px);
-
-
-    box-shadow:
-
-    0 0 20px #F44336;
-
-}
-
-
-
-/*========================
- MENU BUTTON
-========================*/
-
-.btn-menu{
-
-
-    background:var(--primary);
-
-
-    color:#000;
-
-}
-
-
-
-.btn-menu:hover{
-
-
-    transform:translateY(-3px);
-
-
-    box-shadow:
-
-    0 0 20px rgba(182,255,46,.8);
-
-}
-
-
-
-/*========================
- BUTTON GROUP
-========================*/
-
-.btn-group{
-
-
-    display:grid;
-
-
-    grid-template-columns:repeat(2,1fr);
-
-
-    gap:12px;
-
-
-    margin-top:15px;
-
-}
-
-
-
-/*========================
- SUMMARY BOX
-========================*/
-
-.summary{
-
-
-    background:var(--card);
-
-
-    padding:20px;
-
-
-    border-radius:20px;
-
-
-    border:
-
-    1px solid rgba(182,255,46,.20);
-
-
-    box-shadow:var(--shadow);
-
-
-    display:grid;
-
-
-    grid-template-columns:repeat(2,1fr);
-
-
-    gap:15px;
-
-
-    margin-bottom:20px;
-
-}
-
-
-
-.summary .card{
-
-
-    margin:0;
-
-
-    background:var(--input);
-
-
-    text-align:center;
-
-
-    padding:15px;
-
-
-    border-radius:15px;
-
-}
-
-
-
-.summary .card h3{
-
-
-    font-size:14px;
-
-
-    color:var(--primary);
-
-
-    margin-bottom:8px;
-
-}
-
-
-
-.summary .card p{
-
-
-    font-size:18px;
-
-
-    font-weight:800;
-
-
-    color:var(--text);
-
-}
-
-
-
-/*========================
- ANIMATION
-========================*/
-
-@keyframes fadeUp{
-
-
-    from{
-
-
-        opacity:0;
-
-
-        transform:translateY(20px);
-
-
-    }
-
-
-    to{
-
-
-        opacity:1;
-
-
-        transform:translateY(0);
-
-
-    }
-
-}
-/*=====================================================
- ELITE DRIVER MANAGER PREMIUM CSS
- PART 3
- Attendance + Trip + Claim + Leave
- Report + Profile + Settings
-=====================================================*/
-
-
-/*========================
- PAGE TITLE
-========================*/
-
-.page-title{
-
-    font-size:24px;
-
-    font-weight:800;
-
-    margin-bottom:20px;
-
-    color:var(--primary);
-
-}
-
-
-
-/*========================
- ATTENDANCE
-========================*/
-
-.attendance-card{
-
-    display:flex;
-
-    flex-direction:column;
-
-    gap:12px;
-
-}
-
-
-
-.attendance-time{
-
-    font-size:30px;
-
-    font-weight:800;
-
-    color:var(--primary);
-
-}
-
-
-
-.attendance-date{
-
-    color:var(--text2);
-
-    font-size:14px;
-
-}
-
-
-
-.attendance-status{
-
-
-    display:inline-block;
-
-
-    padding:8px 14px;
-
-
-    border-radius:30px;
-
-
-    font-size:12px;
-
-
-    font-weight:700;
-
-
-    width:max-content;
-
-}
-
-
-
-.status-checkin{
-
-
-    background:rgba(0,230,118,.15);
-
-
-    color:var(--success);
-
-}
-
-
-
-.status-checkout{
-
-
-    background:rgba(255,61,87,.15);
-
-
-    color:var(--danger);
-
-}
-
-
-
-.status-pending{
-
-
-    background:rgba(255,193,7,.15);
-
-
-    color:var(--warning);
-
-}
-
-
-
-/*========================
- TRIP
-========================*/
-
-.trip-card{
-
-
-    display:flex;
-
-
-    flex-direction:column;
-
-
-    gap:10px;
-
-}
-
-
-
-.trip-row{
-
-
-    display:flex;
-
-
-    justify-content:space-between;
-
-
-    font-size:14px;
-
-
-    border-bottom:
-
-    1px solid rgba(255,255,255,.05);
-
-
-    padding:8px 0;
-
-}
-
-
-
-.trip-distance{
-
-
-    color:var(--primary);
-
-
-    font-weight:700;
-
-}
-
-
-
-/*========================
- CLAIM
-========================*/
-
-.claim-card{
-
-
-    display:flex;
-
-
-    flex-direction:column;
-
-
-    gap:10px;
-
-}
-
-
-
-.claim-amount{
-
-
-    font-size:26px;
-
-
-    font-weight:800;
-
-
-    color:var(--primary);
-
-}
-
-
-
-.claim-status{
-
-
-    display:inline-block;
-
-
-    width:max-content;
-
-
-    padding:7px 14px;
-
-
-    border-radius:30px;
-
-
-    font-size:12px;
-
-
-    font-weight:700;
-
-}
-
-
-
-.claim-approved{
-
-
-    background:rgba(0,230,118,.15);
-
-
-    color:var(--success);
-
-}
-
-
-
-.claim-pending{
-
-
-    background:rgba(255,193,7,.15);
-
-
-    color:var(--warning);
-
-}
-
-
-
-.claim-rejected{
-
-
-    background:rgba(255,61,87,.15);
-
-
-    color:var(--danger);
-
-}
-
-
-
-/*========================
- LEAVE
-========================*/
-
-.leave-card{
-
-
-    display:flex;
-
-
-    flex-direction:column;
-
-
-    gap:10px;
-
-}
-
-
-
-.leave-type{
-
-
-    font-size:18px;
-
-
-    font-weight:700;
-
-
-    color:var(--primary);
-
-}
-
-
-
-.leave-date{
-
-
-    color:var(--text2);
-
-}
-
-
-
-/*========================
- REPORT
-========================*/
-
-.report-card{
-
-
-    display:flex;
-
-
-    flex-direction:column;
-
-
-    gap:12px;
-
-}
-
-
-
-.report-total{
-
-
-    font-size:32px;
-
-
-    font-weight:800;
-
-
-    color:var(--primary);
-
-}
-
-
-
-.report-label{
-
-
-    color:var(--text2);
-
-}
-
-
-
-/*========================
- PROFILE
-========================*/
-
-.profile-card{
-
-
-    text-align:center;
-
-}
-
-
-
-.profile-avatar{
-
-
-    width:100px;
-
-
-    height:100px;
-
-
-    border-radius:50%;
-
-
-    object-fit:cover;
-
-
-    border:3px solid var(--primary);
-
-
-    margin:0 auto 15px;
-
-
-    box-shadow:var(--shadow);
-
-}
-
-
-
-.profile-name{
-
-
-    font-size:22px;
-
-
-    font-weight:800;
-
-}
-
-
-
-.profile-position{
-
-
-    color:var(--text2);
-
-
-    margin-top:5px;
-
-}
-
-
-
-/*========================
- PROFILE INFO
-========================*/
-
-.profile-info{
-
-
-    display:flex;
-
-
-    justify-content:space-between;
-
-
-    padding:12px 0;
-
-
-    border-bottom:
-
-    1px solid rgba(255,255,255,.06);
-
-
-    font-size:14px;
-
-}
-
-
-
-/*========================
- SETTINGS
-========================*/
-
-.settings-card{
-
-
-    display:flex;
-
-
-    justify-content:space-between;
-
-
-    align-items:center;
-
-
-    padding:18px 20px;
-
-
-    cursor:pointer;
-
-}
-
-
-
-.settings-card:hover{
-
-
-    transform:translateY(-4px);
-
-}
-
-
-
-.settings-title{
-
-
-    font-size:16px;
-
-
-    font-weight:700;
-
-}
-
-
-
-.settings-subtitle{
-
-
-    font-size:13px;
-
-
-    color:var(--text2);
-
-
-    margin-top:4px;
-
-}
-
-
-
-/*========================
- BADGE
-========================*/
-
-.badge{
-
-
-    display:inline-block;
-
-
-    padding:6px 12px;
-
-
-    border-radius:30px;
-
-
-    background:var(--primary);
-
-
-    color:#000;
-
-
-    font-size:11px;
-
-
-    font-weight:700;
-
-}
-
-
-
-/*========================
- HISTORY
-========================*/
-
-.history-item{
-
-
-    display:flex;
-
-
-    justify-content:space-between;
-
-
-    align-items:center;
-
-}
-
-
-
-.history-left{
-
-
-    display:flex;
-
-
-    flex-direction:column;
-
-
-    gap:5px;
-
-}
-
-
-
-.history-right{
-
-
-    font-weight:700;
-
-
-    color:var(--primary);
-
-}
-
-
-
-/*========================
- DIVIDER
-========================*/
-
-.divider{
-
-
-    width:100%;
-
-
-    height:1px;
-
-
-    background:rgba(255,255,255,.08);
-
-
-    margin:18px 0;
-
-}
-
-
-
-/*========================
- LOADING
-========================*/
-
-.loading{
-
-
-    text-align:center;
-
-
-    padding:20px;
-
-
-    color:var(--text2);
-
-}
-
-
-
-/*========================
- EMPTY DATA
-========================*/
-
-.empty{
-
-
-    text-align:center;
-
-
-    padding:30px 20px;
-
-
-    color:var(--text2);
-
-
-    font-size:14px;
-
-}
-
-
-
-/*========================
- IMAGE FIX UNIVERSAL
-========================*/
-
-img{
-
-
-    max-width:100%;
-
-
-    display:block;
-
-}
-/*=====================================================
- ELITE DRIVER MANAGER PREMIUM CSS
- PART 4
- Bottom Navigation + Logo + Theme + Animation + Responsive
-=====================================================*/
-
-
-/*========================
- BOTTOM MENU
-========================*/
-
-.bottom-menu{
-
-    position:fixed;
-
-    bottom:15px;
-
-    left:20px;
-
-    right:20px;
-
-
-    height:65px;
-
-
-    display:flex;
-
-
-    align-items:center;
-
-
-    justify-content:center;
-
-
-    background:var(--card);
-
-
-    border:1px solid var(--primary);
-
-
-    border-radius:35px;
-
-
-    box-shadow:var(--shadow);
-
-
-    z-index:9999;
-
-
-    padding:10px;
-
-}
-
-
-
-/*========================
- MENU SLIDER
-========================*/
-
-.menu-carousel{
-
-
-    display:flex;
-
-
-    align-items:center;
-
-
-    justify-content:space-around;
-
-
-    width:100%;
-
-
-    height:100%;
-
-
-    gap:8px;
-
-
-    overflow-x:auto;
-
-
-    scrollbar-width:none;
-
-}
-
-
-
-.menu-carousel::-webkit-scrollbar{
-
-    display:none;
-
-}
-
-
-
-/*========================
- MENU ITEM
-========================*/
-.menu-item{
-    flex:1;
-    display:flex;
-    justify-content:center;
-    align-items:center;
-}
-.menu-item{
-
-    flex:1;
-
-    display:flex;
-
-    justify-content:center;
-
-    align-items:center;
-
-    text-decoration:none;
-
-    color:var(--text2);
-
-    transition:.3s;
-
-}
-
-
-.menu-item i{
-
-
-    font-size:30px;
-
-
-    margin-bottom:0px;
-
-}
-
-
-
-.menu-item:hover{
-
-
-    color:var(--primary);
-
-}
-
-
-
-.menu-item.active{
-
-
-    color:var(--primary);
-
-
-    transform:translateY(-4px);
-
-}
-.menu-icon{
-    font-size:34px;
-    line-height:1;
-}
-
-
-/*========================
- MENU LABEL
-========================*/
-
-.menu-label{
-    display:none;
-}
-
-
-
-/*========================
- BULAT LOGO MENU
-========================*/
-
-.menu-logo-img{
-
-
-    width:50px !important;
-
-
-    height:50px !important;
-
-
-    border-radius:50% !important;
-
-
-    object-fit:cover !important;
-
-
-    display:block !important;
-
-
-    border:2px solid var(--primary);
-
-
-    box-shadow:
-
-
-    0 0 15px rgba(182,255,46,.5);
-
-}
-
-
-
-/*========================
- CENTER FLOAT LOGO
-========================*/
-
-.floating-logo{
-
-
-    position:absolute;
-
-
-    top:-25px;
-
-
-    left:50%;
-
-
-    transform:translateX(-50%);
-
-
-
-    width:60px;
-
-
-    height:60px;
-
-
-
-    border-radius:50%;
-
-
-    overflow:hidden;
-
-
-    background:var(--card);
-
-
-
-    border:3px solid var(--primary);
-
-
-
-    display:flex;
-
-
-    justify-content:center;
-
-
-    align-items:center;
-
-
-
-    box-shadow:var(--shadow);
-
-
-}
-
-
-
-.floating-logo img{
-
-
-    width:70px;
-
-
-    height:70px;
-
-
-    object-fit:cover;
-
-
-}
-
-
-
-/*========================
- THEME SWITCH
-========================*/
-
-.theme-switch{
-
-
-    display:flex;
-
-
-    justify-content:space-between;
-
-
-    align-items:center;
-
-
-    padding:15px 0;
-
-}
-
-
-
-/*========================
- SWITCH
-========================*/
-
-.switch{
-
-
-    position:relative;
-
-
-    display:inline-block;
-
-
-    width:55px;
-
-
-    height:30px;
-
-}
-
-
-
-.switch input{
-
-
-    display:none;
-
-}
-
-
-
-.slider{
-
-
-    position:absolute;
-
-
-    cursor:pointer;
-
-
-    top:0;
-
-
-    left:0;
-
-
-    right:0;
-
-
-    bottom:0;
-
-
-
-    background:#555;
-
-
-    border-radius:30px;
-
-
-    transition:.30s;
-
-}
-
-
-
-.slider:before{
-
-
-    content:"";
-
-
-    position:absolute;
-
-
-
-    width:22px;
-
-
-    height:22px;
-
-
-
-    left:4px;
-
-
-    bottom:4px;
-
-
-
-    background:white;
-
-
-
-    border-radius:50%;
-
-
-
-    transition:.30s;
-
-}
-
-
-
-input:checked + .slider{
-
-
-    background:var(--primary);
-
-}
-
-
-
-input:checked + .slider:before{
-
-
-    transform:translateX(25px);
-
-}
-
-
-
-/*========================
- TABLE
-========================*/
-
-table{
-
-
-    width:100%;
-
-
-    border-collapse:collapse;
-
-}
-
-
-
-th{
-
-
-    background:rgba(182,255,46,.15);
-
-
-    color:var(--primary);
-
-
-    padding:12px;
-
-
-    font-size:13px;
-
-}
-
-
-
-td{
-
-
-    padding:12px;
-
-
-    border-bottom:
-
-
-    1px solid rgba(255,255,255,.06);
-
-
-    font-size:13px;
-
-}
-
-
-
-/*========================
- SCROLLBAR
-========================*/
-
-::-webkit-scrollbar{
-
-
-    width:6px;
-
-}
-
-
-
-::-webkit-scrollbar-track{
-
-
-    background:transparent;
-
-}
-
-
-
-::-webkit-scrollbar-thumb{
-
-
-    background:var(--primary);
-
-
-    border-radius:20px;
-
-}
-
-
-
-/*========================
- SPACING
-========================*/
-
-.mt-10{margin-top:10px;}
-
-.mt-15{margin-top:15px;}
-
-.mt-20{margin-top:20px;}
-
-.mt-30{margin-top:30px;}
-
-
-
-.mb-10{margin-bottom:10px;}
-
-.mb-15{margin-bottom:15px;}
-
-.mb-20{margin-bottom:20px;}
-
-.mb-30{margin-bottom:30px;}
-
-
-
-.text-center{text-align:center;}
-
-.text-right{text-align:right;}
-
-.w-100{width:100%;}
-
-
-
-/*========================
- GLOW EFFECT
-========================*/
-
-@keyframes glow{
-
-
-    0%{
-
-        box-shadow:0 0 8px rgba(182,255,46,.2);
-
-    }
-
-
-    50%{
-
-        box-shadow:0 0 25px rgba(182,255,46,.8);
-
-    }
-
-
-    100%{
-
-        box-shadow:0 0 8px rgba(182,255,46,.2);
-
-    }
-
-}
-
-
-
-.glow{
-
-
-    animation:glow 2s infinite;
-
-}
-
-
-
-/*========================
- RESPONSIVE TABLET
-========================*/
-
-@media(min-width:768px){
-
-
-    body{
-
-
-        max-width:480px;
-
-
-        margin:auto;
-
-    }
-
-
-
-    .bottom-menu{
-
-
-        max-width:480px;
-
-
-        left:50%;
-
-
-        right:auto;
-
-
-        width:440px;
-
-
-        transform:translateX(-50%);
-
-    }
-
-}
-
-
-
-/*========================
- SMALL PHONE
-========================*/
-
-@media(max-width:360px){
-
-
-    .action-grid{
-
-
-        grid-template-columns:1fr;
-
-    }
-
-
-
-    .stats-grid{
-
-
-        grid-template-columns:1fr;
-
-    }
-
-
-
-    .btn-group{
-
-
-        grid-template-columns:1fr;
-
-    }
-
-
-
-    .action-list{
-
-
-        grid-template-columns:repeat(2,1fr);
-
-    }
-
-
-
-    .more-grid{
-
-
-        grid-template-columns:repeat(2,1fr);
-
-    }
-
-}
-
-
-
-/*========================
- FOOTER SPACE
-========================*/
-
-.footer-space{
-
-
-    height:90px;
-
-}
-
-/*========================
- MORE GRID
-========================*/
-
-.more-grid{
-
-    display:grid;
-
-    grid-template-columns:repeat(3,1fr);
-
-    gap:15px;
-
-    margin-top:20px;
-
-}
-
-
-/*========================
- MORE CARD
-========================*/
-
-.more-card{
-
-    display:flex;
-
-    flex-direction:column;
-
-    justify-content:center;
-
-    align-items:center;
-
-    text-decoration:none;
-
-    background:var(--card);
-
-    color:var(--text);
-
-    border:1px solid rgba(182,255,46,.20);
-
-    border-radius:20px;
-
-    padding:20px 10px;
-
-    min-height:120px;
-
-    box-shadow:var(--shadow);
-
-    transition:.35s;
-
+html,body{
+  margin:0;
+  padding:0;
+  height:100%;
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;
 }
-
-
-.more-card span{
-
-    font-size:34px;
 
-    margin-bottom:12px;
-
-    transition:.35s;
-
+#map{
+  width:100%;
+  height:55vh;
 }
-
-
-.more-card p{
-
-    color:var(--text);
-
-    font-size:13px;
-
-    font-weight:700;
-
-    text-align:center;
-
+#timeline{
+  padding:15px;
+  background:white;
+  font-size:14px;
+  height:45vh;
+  overflow:auto;
 }
-
-
-.more-card:hover,
-.more-card:active{
-
-    transform:translateY(-6px);
 
-    border-color:var(--primary);
-
-    box-shadow:var(--shadow-hover);
-
+.timeline-item{
+  padding:10px;
+  border-left:4px solid #2196f3;
+  margin-bottom:10px;
+  border-radius:4px;
 }
-
-
-.more-card:hover span,
-.more-card:active span{
 
-    transform:scale(1.15);
-
-}
-.password-box{
-    position:relative;
-    width:100%;
+.timeline-header{
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  margin-bottom:10px;
 }
 
-.password-box input{
-    padding-right:50px;
+.btn {
+  display:inline-block;
+  padding:8px 12px;
+  background:#0f8583;
+  color:white;
+  border-radius:20px;
+  cursor:pointer;
+  font-size:14px;
 }
 
-#togglePassword{
-    position:absolute;
-    right:15px;
-    top:50%;
-    transform:translateY(-50%);
-    cursor:pointer;
-    font-size:20px;
-    z-index:10;
+.btn-outline {
+  display:inline-block;
+  padding:6px 10px;
+  background:transparent;
+  color:#0f8583;
+  border:1px solid #0f8583;
+  border-radius:16px;
+  cursor:pointer;
+  font-size:13px;
 }
-.login-box button{
-    width:100%;
-    padding:15px;
-    background:var(--primary);
-    color:#000;
-    border:none;
-    border-radius:15px;
-    font-size:15px;
-    font-weight:700;
-    cursor:pointer;
-    transition:.3s;
-}
 
-.login-box button:hover{
-    transform:translateY(-3px);
-    box-shadow:0 0 20px rgba(182,255,46,.6);
-}
-.login-box img{
-    width:110px;
-    height:110px;
-    border-radius:50%;
-    object-fit:cover;
-    display:block;
-    margin:0 auto 10px;
-    border:3px solid var(--primary);
-}
-#attendanceList a{
-    color:#00e676;
-    text-decoration:none;
-    font-weight:bold;
+.small {
+  padding:6px 8px;
+  font-size:12px;
 }
 
-#attendanceList a:hover{
-    text-decoration:underline;
+.add-visit {
+  margin-top:8px;
 }
-/*========================
- FINISH
-========================*/

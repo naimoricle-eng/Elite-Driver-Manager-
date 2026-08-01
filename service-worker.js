@@ -1,4 +1,4 @@
-const CACHE_NAME = "elite-driver-manager-v1";
+const CACHE_NAME = "elite-driver-manager-v2";
 
 const urlsToCache = [
   './',
@@ -20,7 +20,7 @@ self.addEventListener("install", (event) => {
 });
 
 self.addEventListener("activate", (event) => {
-  // Cleanup any old caches if you change CACHE_NAME in the future
+  // Cleanup any old caches when activating a new service worker
   event.waitUntil(
     caches.keys().then((keys) => {
       return Promise.all(
@@ -31,7 +31,7 @@ self.addEventListener("activate", (event) => {
 });
 
 self.addEventListener("fetch", (event) => {
-  // Use a network-first strategy for CSS/JS so we don't serve stale styles forever.
+  // Network-first for CSS/JS so updates are picked up quickly, cache-first for others
   const requestURL = new URL(event.request.url);
   if (requestURL.pathname.endsWith('.css') || requestURL.pathname.endsWith('.js')) {
     event.respondWith(

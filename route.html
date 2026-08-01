@@ -77,18 +77,16 @@ import {
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 /*
-  Changes in this version:
-  - Try Mapbox Map Matching if token is set; otherwise try the public OSRM match endpoint.
-  - Draw snapped route (road-following) and animate the car along the snapped geometry.
-  - Keep stop detection based on raw recorded points (unchanged) and timeline behavior.
+  Changes in this OSRM-only version:
+  - Use OSRM Match API (router.project-osrm.org) to snap points to roads
+  - No Mapbox dependency or token required
+  - Draw snapped route and animate the car along the snapped geometry
+  - Fallback to raw polyline if OSRM matching fails
 
-  Notes:
-  - Mapbox requires an access token (replace MAPBOX_ACCESS_TOKEN below).
-  - Public OSRM (router.project-osrm.org) is available for testing but may have CORS/rate limits and is not guaranteed for production.
+  NOTE: The public OSRM service is convenient for testing but may have
+  CORS/rate-limit/unreliability issues. For production consider
+  self-hosting OSRM or using a paid routing/matching provider.
 */
-
-// Set your Mapbox token here (replace with actual token) if you want to use Mapbox matching.
-const MAPBOX_ACCESS_TOKEN = '<YOUR_MAPBOX_ACCESS_TOKEN>'; // <-- replace me or leave empty to use OSRM
 
 const map = L.map("map").setView([3.1390,101.6869],11);
 
@@ -281,7 +279,7 @@ timelineList.innerHTML = timelineHTML;
 // route fallback points (raw)
 const rawRoutePoints = points.map(p=>[p.lat,p.lng]);
 
-// Draw snapped route: try Mapbox (if token) then OSRM; return snapped latlng array (lat,lng)
+// Draw snapped route using OSRM Match API; return snapped latlng array (lat,lng)
 async function drawSnappedRoute(){
   if(points.length < 2){
     if(rawRoutePoints.length) L.polyline(rawRoutePoints, { color:"blue", weight:5 }).addTo(map);
@@ -290,31 +288,7 @@ async function drawSnappedRoute(){
 
   // prepare coords as lon,lat
   const coordPairs = points.map(p => `${p.lng},${p.lat}`).join(';');
-  const timestamps = points.map(p => Math.floor(p.timeMs/1000)).join(';');
 
-  // try Mapbox if token provided
-  if(MAPBOX_ACCESS_TOKEN && !MAPBOX_ACCESS_TOKEN.includes('<YOUR_MAPBOX_ACCESS_TOKEN>')){
-    const mbUrl = `https://api.mapbox.com/matching/v5/mapbox/driving/${coordPairs}?geometries=geojson&overview=full&access_token=${MAPBOX_ACCESS_TOKEN}&timestamps=${timestamps}`;
-    try{
-      const res = await fetch(mbUrl);
-      if(res.ok){
-        const json = await res.json();
-        if(json && json.matchings && json.matchings.length){
-          let combined = [];
-          json.matchings.forEach(m => { if(m.geometry && m.geometry.coordinates) combined = combined.concat(m.geometry.coordinates); });
-          // dedupe
-          const dedup = [];
-          for(const c of combined){ const last = dedup[dedup.length-1]; if(!last || last[0] !== c[0] || last[1] !== c[1]) dedup.push(c); }
-          const snappedLatLngs = dedup.map(c => [c[1], c[0]]);
-          return snappedLatLngs;
-        }
-      } else {
-        console.warn('Mapbox match failed', res.status, res.statusText);
-      }
-    }catch(err){ console.warn('Mapbox request error', err); }
-  }
-
-  // fallback: try public OSRM match
   try{
     const osrmUrl = `https://router.project-osrm.org/match/v1/driving/${coordPairs}?geometries=geojson&overview=full`;
     const res = await fetch(osrmUrl);
@@ -327,6 +301,8 @@ async function drawSnappedRoute(){
         for(const c of combined){ const last = dedup[dedup.length-1]; if(!last || last[0] !== c[0] || last[1] !== c[1]) dedup.push(c); }
         const snappedLatLngs = dedup.map(c => [c[1], c[0]]);
         return snappedLatLngs;
+      } else {
+        console.warn('OSRM returned no matchings, falling back to raw polyline');
       }
     } else {
       console.warn('OSRM match failed', res.status, res.statusText);
@@ -470,7 +446,6 @@ document.getElementById("saveHistoryBtn").addEventListener("click", ()=>{
   // if drawSnappedRoute already added a polyline for raw points and returned raw, latlngs will be set
   if(latlngs && latlngs.length){
     // draw route visually if not already drawn (drawSnappedRoute may not draw when returning snapped latlngs)
-    // we draw a visible route now for snapped latlngs
     if(latlngs !== rawRoutePoints){
       const route = L.polyline(latlngs, { color: '#5b21b6', weight: 8, opacity: 0.98 }).addTo(map);
       L.polyline(latlngs, { color: '#ffffff', weight: 12, opacity: 0.3, interactive:false }).addTo(map);

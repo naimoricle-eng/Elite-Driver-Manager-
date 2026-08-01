@@ -1,65 +1,331 @@
 <!DOCTYPE html>
 <html lang="ms">
+
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Driver Route</title>
 
-  <link rel="stylesheet" href="./css/route.css" />
-  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<title>Driver Route</title>
+
+<meta name="viewport" content="width=device-width, initial-scale=1">
+
+<link rel="stylesheet"
+href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+
+<style>
+
+html,body{
+margin:0;
+padding:0;
+height:100%;
+}
+
+#map{
+width:100%;
+height:100vh;
+}
+#timeline{
+
+padding:15px;
+background:white;
+font-size:14px;
+
+}
+
+.timeline-item{
+
+padding:10px;
+border-left:4px solid #2196f3;
+margin-bottom:10px;
+
+}
+
+</style>
+
 </head>
+
 <body>
-  <div id="map" role="application" aria-label="Peta perjalanan"></div>
 
-  <div id="timeline" aria-live="polite">
-    <div class="timeline-header">
-      <h3>📍 TRIP TIMELINE</h3>
-      <div>
-        <button id="saveHistoryBtn" class="btn small" aria-label="Save day history">Save Day History</button>
-      </div>
-    </div>
-    <div id="timelineList">Loading...</div>
-  </div>
+<div id="map"></div>
 
-  <!-- Floating Action Button (keeps UI similar to Google Timeline) -->
-  <div class="fab" aria-hidden="true" id="fab" style="display:none">
-    <div class="actions hide" id="fabActions" aria-hidden="true">
-      <div style="display:flex;align-items:center;">
-        <button id="editDayBtn" aria-label="Edit day"><span>Edit day</span></button>
-        <div class="icon-circle" title="edit">✏️</div>
-      </div>
-      <div style="display:flex;align-items:center;">
-        <button id="addVisitBtn" aria-label="Add visit"><span>Add visit</span></button>
-        <div class="icon-circle" title="add">📍</div>
-      </div>
-      <div style="display:flex;align-items:center;">
-        <button id="addNoteBtn" aria-label="Add note"><span>Add note</span></button>
-        <div class="icon-circle" title="note">🗒️</div>
-      </div>
-      <div style="display:flex;align-items:center;">
-        <button id="deleteDayBtn" aria-label="Delete day"><span>Delete day</span></button>
-        <div class="icon-circle" title="delete">🗑️</div>
-      </div>
-    </div>
+<div id="timeline">
 
-    <div>
-      <button class="main" id="fabMain" aria-label="Open menu">✕</button>
-    </div>
-  </div>
+<h3>📍 TRIP TIMELINE</h3>
 
-  <!-- Modal for entering place names (replaces prompt) -->
-  <div id="placeModal" class="modal" aria-hidden="true" role="dialog" aria-modal="true">
-    <div class="modal-content" role="document">
-      <h4 id="placeModalTitle">Name this stop</h4>
-      <input id="placeModalInput" aria-label="Place name" />
-      <div class="modal-actions">
-        <button id="placeModalCancel">Cancel</button>
-        <button id="placeModalSave">Save</button>
-      </div>
-    </div>
-  </div>
+<div id="timelineList">
+Loading...
+</div>
 
-  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-  <script type="module" src="./js/route.js"></script>
+</div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+<script type="module">
+
+import { db } from "./js/firebase.js";
+
+import {
+collection,
+getDocs,
+getDoc,
+doc,
+query,
+orderBy
+} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+
+const map = L.map("map").setView([3.1390,101.6869],11);
+
+L.tileLayer(
+"https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
+{
+maxZoom:19
+}
+).addTo(map);
+
+
+// Ambil attendance ID daripada URL
+
+const params = new URLSearchParams(window.location.search);
+
+const attendanceID = params.get("id");
+
+console.log("ID:", attendanceID);
+
+
+if(!attendanceID){
+
+    alert("Attendance ID tidak dijumpai");
+    throw new Error("Attendance ID kosong");
+
+}
+
+
+const attendanceDoc = await getDoc(
+    doc(db,"attendance",attendanceID)
+);
+
+
+const attendanceData = attendanceDoc.data();
+
+console.log("Attendance:", attendanceData);
+const trackingQuery = query(
+    collection(
+        db,
+        "attendance",
+        attendanceID,
+        "tracking"
+    ),
+    orderBy("time","asc")
+);
+
+const trackingSnap = await getDocs(trackingQuery);
+
+let routePoints = [];
+let timelineHTML = "";
+let totalDistance = 0;
+function calculateDistance(lat1, lon1, lat2, lon2){
+
+    let R = 6371; // KM
+
+    let dLat = (lat2-lat1) * Math.PI / 180;
+    let dLon = (lon2-lon1) * Math.PI / 180;
+
+    let a =
+    Math.sin(dLat/2) * Math.sin(dLat/2) +
+    Math.cos(lat1*Math.PI/180) *
+    Math.cos(lat2*Math.PI/180) *
+    Math.sin(dLon/2) *
+    Math.sin(dLon/2);
+
+    let c = 2 * Math.atan2(
+        Math.sqrt(a),
+        Math.sqrt(1-a)
+    );
+
+    return R * c;
+
+}
+trackingSnap.forEach((doc)=>{
+
+const data = doc.data();
+
+console.log("TRACKING DATA:", data);
+
+let currentPoint = [
+    data.latitude,
+    data.longitude
+];
+
+
+if(routePoints.length > 0){
+
+    let lastPoint = routePoints[routePoints.length - 1];
+
+    totalDistance += calculateDistance(
+        lastPoint[0],
+        lastPoint[1],
+        currentPoint[0],
+        currentPoint[1]
+    );
+
+}
+
+
+routePoints.push(currentPoint);
+
+
+let time = "-";
+
+if(data.time){
+
+    if(data.time.toDate){
+
+        time = data.time.toDate()
+        .toLocaleString("ms-MY");
+
+    }else{
+
+        time = new Date(data.time)
+        .toLocaleString("ms-MY");
+
+    }
+
+}
+
+
+timelineHTML += `
+
+<div class="timeline-item">
+
+🔵 Tracking Point<br>
+
+📍 ${data.place || "-"}<br>
+
+🕒 ${time}
+
+</div>
+
+`;
+
+});
+
+
+document.getElementById("timelineList").innerHTML += `
+
+<div class="timeline-item">
+
+🚗 Total Distance<br>
+
+${totalDistance.toFixed(2)} KM
+
+</div>
+
+`;
+
+
+if(routePoints.length > 0){
+
+    // Lukis garisan perjalanan
+
+    const polyline = L.polyline(
+        routePoints,
+        {
+            color:"blue",
+            weight:5
+        }
+    ).addTo(map);
+
+
+    // Zoom ikut laluan
+
+    map.fitBounds(
+        polyline.getBounds()
+    );
+
+
+    // Marker setiap tracking point
+
+    routePoints.forEach((point,index)=>{
+
+    let data = trackingSnap.docs[index].data();
+
+    let time = "-";
+
+    if(data.time){
+
+        time = data.time.toDate()
+        .toLocaleString("ms-MY");
+
+    }
+
+
+    L.marker(point)
+    .addTo(map)
+    .bindPopup(
+        "🚗 Tracking Point " + (index + 1) +
+        "<br>📍 " + (data.place || "-") +
+        "<br>🕒 " + time
+    );
+
+});
+    // MARKER CHECK IN
+
+if(attendanceData.checkIn){
+
+    let checkInTime = "-";
+
+    if(attendanceData.checkIn.toDate){
+
+        checkInTime = attendanceData.checkIn
+        .toDate()
+        .toLocaleString("ms-MY");
+
+    }
+
+
+    L.marker(routePoints[0])
+    .addTo(map)
+    .bindPopup(
+        "🟢 CHECK IN<br>" +
+        "📍 " + (attendanceData.location || "-") +
+        "<br>🕒 " + checkInTime
+    );
+
+}
+
+
+// MARKER CHECK OUT
+
+if(attendanceData.checkOut){
+
+    let checkOutTime = "-";
+
+    if(attendanceData.checkOut.toDate){
+
+        checkOutTime = attendanceData.checkOut
+        .toDate()
+        .toLocaleString("ms-MY");
+
+    }
+
+
+    L.marker(routePoints[routePoints.length-1])
+    .addTo(map)
+    .bindPopup(
+        "🔴 CHECK OUT<br>" +
+        "📍 " + (attendanceData.checkoutLocation || "-") +
+        "<br>🕒 " + checkOutTime
+    );
+
+}
+
+}else{
+
+    alert("Tiada data tracking");
+
+}
+console.log(routePoints);
+
+</script>
+
 </body>
+
 </html>

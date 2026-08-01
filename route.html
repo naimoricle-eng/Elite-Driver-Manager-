@@ -105,28 +105,33 @@ styleEl.innerHTML = `
   .leaflet-container svg path { stroke-linecap: round; stroke-linejoin: round; }
   .fab { position: fixed; bottom: 26px; right: 18px; z-index: 9999; display:flex; align-items:center; gap:10px; pointer-events: none; }
   .fab .actions { display: flex; flex-direction: column; gap: 12px; margin-right: 12px; align-items: flex-end; pointer-events: auto; }
-  .fab button { pointer-events: auto; border: none; background: #fff; padding: 10px 14px; border-radius: 8px; box-shadow: 0 6px 18px rgba(0,0,0,0.18); cursor: pointer; display:flex; align-items:center; gap:10px; font-weight:600; }
-  .fab .main { width:56px; height:56px; border-radius:50%; background:#0ea5a4; color:#fff; font-size:28px; display:flex; align-items:center; justify-content:center; box-shadow: 0 10px 20px rgba(0,0,0,0.25); pointer-events:auto; }
+  .fab button { pointer-events: auto; border: none; background: #fff; padding: 10px 14px; border-radius: 8px; box-shadow: 0 6px 18px rgba(0,0,0,0.18); cursor: pointer; display:flex; align-items:center; }
+  .fab .main { width:56px; height:56px; border-radius:50%; background:#0ea5a4; color:#fff; font-size:28px; display:flex; align-items:center; justify-content:center; box-shadow: 0 10px 20px rgba(0,0,0,0.18); }
   .fab .actions.hide { display:none; }
   .fab .icon-circle { width:38px; height:38px; border-radius:50%; background:#fff; display:inline-flex; align-items:center; justify-content:center; box-shadow: 0 4px 10px rgba(0,0,0,0.12); }
   .timeline-item strong { display:block; font-size:16px; }
   .timeline-item { padding:14px 8px; border-left:4px solid #00a3b5; margin-bottom:8px; background:#fff }
+  /* Hide the floating X FAB: the app uses per-point controls in the timeline instead */
+  .fab { display: none !important; }
 `;
 document.head.appendChild(styleEl);
 
 // FAB behavior
 const fabMain = document.getElementById('fabMain');
 const fabActions = document.getElementById('fabActions');
-fabMain.addEventListener('click', ()=>{
-  const open = !fabActions.classList.contains('hide');
-  if(open){
-    fabActions.classList.add('hide');
-    fabMain.textContent = '✕';
-  } else {
-    fabActions.classList.remove('hide');
-    fabMain.textContent = '×';
-  }
-});
+// make handler defensive in case the FAB is removed entirely in future edits
+if(fabMain && fabActions){
+  fabMain.addEventListener('click', ()=>{
+    const open = !fabActions.classList.contains('hide');
+    if(open){
+      fabActions.classList.add('hide');
+      fabMain.textContent = '✕';
+    } else {
+      fabActions.classList.remove('hide');
+      fabMain.textContent = '×';
+    }
+  });
+}
 
 // get attendance ID from URL
 const params = new URLSearchParams(window.location.search);

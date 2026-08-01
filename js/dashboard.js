@@ -34,6 +34,14 @@ let selfieFile = null;
 let userReady = false;
 let currentStatus = "Driving";
 
+// Pending check-in payload (location + selfie must be provided before sliding)
+const pendingCheckin = {
+  lat: null,
+  lon: null,
+  place: null,
+  selfie: null
+};
+
 // Helpers: guarded DOM accessor
 const $ = id => document.getElementById(id);
 
@@ -42,6 +50,33 @@ function setText(id, text) {
   const el = $(id);
   if (!el) return;
   el.textContent = text;
+}
+
+// Toast helper (non-blocking)
+function showToast(message, timeout = 3000) {
+  const t = $("toast");
+  if (!t) {
+    try { alert(message); } catch (e) { console.log(message); }
+    return;
+  }
+  t.textContent = message;
+  t.style.display = "block";
+  clearTimeout(t._hideTimeout);
+  t._hideTimeout = setTimeout(() => {
+    t.style.display = "none";
+  }, timeout);
+}
+
+// Greeting helper
+function showGreeting(name) {
+  const g = $("greeting");
+  if (!g) return;
+  if (name && name.length) {
+    g.textContent = `Welcome, ${name}`;
+    g.style.display = "block";
+  } else {
+    g.style.display = "none";
+  }
 }
 
 // ===============================
@@ -67,9 +102,12 @@ onAuthStateChanged(auth, async (user) => {
 
       userReady = true;
       await loadAttendanceStatus();
+
+      if (localStorage.getItem("status") === "Driving") {
+        showGreeting(driverName);
+      }
     }
   } catch (err) {
-    // Logging (consider sending to monitoring)
     console.error("Failed to load user:", err);
   }
 });
@@ -81,7 +119,6 @@ function updateStatus(status) {
   currentStatus = status;
   setText("status", status);
   setText("dashStatus", status);
-  // update aria-pressed on checkin button (if present)
   const btnCheckin = $("btn-checkin");
   if (btnCheckin) btnCheckin.setAttribute("aria-pressed", String(status === "Driving"));
 
@@ -131,7 +168,6 @@ async function compressImage(file) {
       const canvas = document.createElement("canvas");
       const ctx = canvas.getContext("2d");
 
-      // preserve aspect ratio and cap size to 800px for better quality
       const MAX_SIZE = 800;
       let width = img.width;
       let height = img.height;
@@ -185,40 +221,113 @@ async function saveTracking(lat, lon, status) {
 function initCheckinHandler() {
   const btnCheckin = $("btn-checkin");
   const selfieInput = $("selfieInput");
-  if (!btnCheckin || !selfieInput) return;
+  const slideConfirm = $("slideConfirm");
+  const slideTrack = $("slideTrack");
+  const sliderKnob = $("sliderKnob");
 
-  btnCheckin.addEventListener("click", () => {
-    if (!userReady) {
-      alert("Sila tunggu sistem siap loading.");
-      return;
-    }
+  if (!btnCheckin || !selfieInput || !slideConfirm || !slideTrack || !sliderKnob) return;
 
-    selfieFile = null;
-    selfieInput.value = "";
-    selfieInput.click();
+  function showSlideConfirm() {
+    slideConfirm.style.display = "flex";
+    slideConfirm.setAttribute("aria-hidden", "false");
+    sliderKnob.style.left = "6px";
+    sliderKnob._confirmed = false;
+  }
+
+  function hideSlideConfirm() {
+    slideConfirm.style.display = "none";
+    slideConfirm.setAttribute("aria-hidden", "true");
+  }
+
+  // Slide logic
+  let dragging = false;
+  let startX = 0;
+  let knobStartLeft = 6;
+  sliderKnob.addEventListener("pointerdown", (ev) => {
+    ev.preventDefault();
+    sliderKnob.setPointerCapture(ev.pointerId);
+    dragging = true;
+    startX = ev.clientX;
+    const leftPx = parseInt(getComputedStyle(sliderKnob).left, 10) || 6;
+    knobStartLeft = leftPx;
   });
 
-  selfieInput.addEventListener("change", async function (e) {
-    if (!e.target.files || e.target.files.length === 0) {
-      alert("Sila ambil selfie dahulu.");
+  window.addEventListener("pointermove", (ev) => {
+    if (!dragging) return;
+    ev.preventDefault();
+    const trackRect = slideTrack.getBoundingClientRect();
+    const knobWidth = sliderKnob.offsetWidth;
+    const minLeft = 6;
+    const maxLeft = trackRect.width - knobWidth - 6;
+    const delta = ev.clientX - startX;
+    let newLeft = knobStartLeft + delta;
+    if (newLeft < minLeft) newLeft = minLeft;
+    if (newLeft > maxLeft) newLeft = maxLeft;
+    sliderKnob.style.left = `${newLeft}px`;
+    if (newLeft >= maxLeft * 0.85) {
+      sliderKnob._confirmed = true;
+      sliderKnob.style.left = `${maxLeft}px`;
+    } else {
+      sliderKnob._confirmed = false;
+    }
+  });
+
+  window.addEventListener("pointerup", (ev) => {
+    if (!dragging) return;
+    dragging = false;
+    try { sliderKnob.releasePointerCapture(ev.pointerId); } catch (e) {}
+    if (sliderKnob._confirmed) {
+      hideSlideConfirm();
+      // finalise check-in using pendingCheckin
+      doFinalCheckin();
+    } else {
+      sliderKnob.style.left = "6px";
+    }
+  });
+
+  sliderKnob.addEventListener("keydown", (ev) => {
+    if (ev.key === "Enter" || ev.key === " " || ev.key === "Spacebar") {
+      ev.preventDefault();
+      sliderKnob._confirmed = true;
+      hideSlideConfirm();
+      doFinalCheckin();
+    }
+  });
+
+  // When user presses Check In: get location first, then selfie, then show slide
+  btnCheckin.addEventListener("click", async () => {
+    if (!userReady) {
+      showToast("Sila tunggu sistem siap loading.");
       return;
     }
 
-    selfieFile = e.target.files[0];
+    if (localStorage.getItem("status") === "Driving") {
+      showToast("Anda sudah Check In.");
+      return;
+    }
 
     if (!navigator.geolocation) {
-      alert("Browser tidak menyokong GPS.");
+      showToast("Browser tidak menyokong GPS.");
       return;
     }
+
+    showToast("Mendapatkan lokasi...");
 
     navigator.geolocation.getCurrentPosition(async function (pos) {
       const lat = pos.coords.latitude;
       const lon = pos.coords.longitude;
       const place = await getLocationName(lat, lon);
-      const today = new Date().toLocaleDateString();
+
+      // set pending location
+      pendingCheckin.lat = lat;
+      pendingCheckin.lon = lon;
+      pendingCheckin.place = place;
+
+      showToast(`Lokasi: ${place}`);
 
       // Check for active attendance for today
       try {
+        const today = new Date().toLocaleDateString();
         const q = query(collection(db, "attendance"), where("uid", "==", currentUser.uid), where("status", "==", "Working"));
         const snap = await getDocs(q);
         let active = false;
@@ -230,78 +339,137 @@ function initCheckinHandler() {
           }
         });
         if (active) {
-          alert("❌ Anda masih belum Check Out.");
+          showToast("❌ Anda masih belum Check Out.");
+          // clear pending location
+          pendingCheckin.lat = pendingCheckin.lon = pendingCheckin.place = null;
           return;
         }
       } catch (err) {
         console.error("Attendance check failed:", err);
       }
 
-      // Compress and upload snapshot
+      // Request camera permission first (best-effort) then open file input
       try {
-        const compressed = await compressImage(selfieFile);
-        const selfieBase64 = await convertToBase64(compressed);
-
-        const ref = await addDoc(collection(db, "attendance"), {
-          uid: currentUser.uid,
-          name: driverName,
-          position: driverPosition,
-          email: driverEmail,
-          role: userRole,
-          selfie: selfieBase64,
-          latitude: lat,
-          longitude: lon,
-          location: place,
-          status: "Working",
-          trackingStatus: "Running",
-          checkIn: serverTimestamp(),
-          createdAt: serverTimestamp()
-        });
-
-        localStorage.setItem("attendanceID", ref.id);
-
-        const now = new Date();
-        localStorage.setItem("checkIn", now.toString());
-        localStorage.setItem("status", "Driving");
-        localStorage.setItem("checkinLat", lat);
-        localStorage.setItem("checkinLon", lon);
-        localStorage.setItem("checkinPlace", place);
-
-        const mapLink = `https://www.google.com/maps?q=${lat},${lon}`;
-        localStorage.setItem("checkinMap", mapLink);
-
-        updateStatus("Driving");
-        setText("checkinData", "CHECK IN : " + now.toLocaleTimeString());
-        setText("checkinLocation", "📍 CHECK IN LOCATION : " + place);
-
-        const openCheckinMap = $("openCheckinMap");
-        if (openCheckinMap) {
-          openCheckinMap.style.display = "block";
-          openCheckinMap.onclick = () => window.open(mapLink, "_blank");
-        }
-
-        const btnCheckout = $("btn-checkout");
-        if ($("btn-checkin")) $("btn-checkin").disabled = true;
-        if (btnCheckout) btnCheckout.disabled = false;
-
-        await saveTracking(lat, lon, "MULA");
-        if (localStorage.getItem("attendanceID")) startTracking();
-
-        alert("✅ Check In Berjaya");
-      } catch (err) {
-        console.error("Check-in failed:", err);
-        alert("❌ Gagal semasa Check In.");
+        await requestCameraThenSelfieInput().catch(() => {});
+      } finally {
+        selfieInput.value = "";
+        selfieInput.click();
       }
 
     }, function (error) {
       console.warn("Geolocation error:", error);
-      alert("❌ Sila hidupkan GPS dan benarkan akses lokasi.");
+      showToast("❌ Sila hidupkan GPS dan benarkan akses lokasi.");
     }, {
       enableHighAccuracy: true,
       timeout: 10000,
       maximumAge: 0
     });
   });
+
+  // Selfie input: set pendingCheckin.selfie, then show slide confirm
+  selfieInput.addEventListener("change", async function (e) {
+    if (!e.target.files || e.target.files.length === 0) {
+      showToast("Sila ambil selfie dahulu.");
+      return;
+    }
+
+    pendingCheckin.selfie = e.target.files[0];
+
+    showToast("Selfie diterima. Sila luncurkan untuk mengesahkan.");
+
+    // Ensure we have location; if not, ask to get location first
+    if (!pendingCheckin.lat) {
+      showToast("Sila dapatkan lokasi terlebih dahulu.");
+      return;
+    }
+
+    // Show slide-to-confirm now that location + selfie are present
+    showSlideConfirm();
+    setTimeout(() => sliderKnob.focus(), 100);
+  });
+}
+
+// Final check-in action uses pendingCheckin data
+async function doFinalCheckin() {
+  if (!pendingCheckin.lat || !pendingCheckin.lon || !pendingCheckin.place) {
+    showToast("Lokasi tidak tersedia. Sila cuba lagi.");
+    return;
+  }
+  if (!pendingCheckin.selfie) {
+    showToast("Selfie tidak tersedia. Sila ambil selfie dahulu.");
+    return;
+  }
+
+  try {
+    const compressed = await compressImage(pendingCheckin.selfie);
+    const selfieBase64 = await convertToBase64(compressed);
+
+    const ref = await addDoc(collection(db, "attendance"), {
+      uid: currentUser.uid,
+      name: driverName,
+      position: driverPosition,
+      email: driverEmail,
+      role: userRole,
+      selfie: selfieBase64,
+      latitude: pendingCheckin.lat,
+      longitude: pendingCheckin.lon,
+      location: pendingCheckin.place,
+      status: "Working",
+      trackingStatus: "Running",
+      checkIn: serverTimestamp(),
+      createdAt: serverTimestamp()
+    });
+
+    localStorage.setItem("attendanceID", ref.id);
+
+    const now = new Date();
+    localStorage.setItem("checkIn", now.toString());
+    localStorage.setItem("status", "Driving");
+    localStorage.setItem("checkinLat", pendingCheckin.lat);
+    localStorage.setItem("checkinLon", pendingCheckin.lon);
+    localStorage.setItem("checkinPlace", pendingCheckin.place);
+
+    const mapLink = `https://www.google.com/maps?q=${pendingCheckin.lat},${pendingCheckin.lon}`;
+    localStorage.setItem("checkinMap", mapLink);
+
+    updateStatus("Driving");
+    setText("checkinData", "CHECK IN : " + now.toLocaleTimeString());
+    setText("checkinLocation", "📍 CHECK IN LOCATION : " + pendingCheckin.place);
+
+    const openCheckinMap = $("openCheckinMap");
+    if (openCheckinMap) {
+      openCheckinMap.style.display = "block";
+      openCheckinMap.onclick = () => window.open(mapLink, "_blank");
+    }
+
+    const btnCheckout = $("btn-checkout");
+    if ($("btn-checkin")) $("btn-checkin").disabled = true;
+    if (btnCheckout) btnCheckout.disabled = false;
+
+    await saveTracking(pendingCheckin.lat, pendingCheckin.lon, "MULA");
+    if (localStorage.getItem("attendanceID")) startTracking();
+
+    showToast("Check in successful");
+    showGreeting(driverName);
+
+    // clear pending selfie but keep location if needed
+    pendingCheckin.selfie = null;
+  } catch (err) {
+    console.error("Check-in failed:", err);
+    showToast("❌ Gagal semasa Check In.");
+  }
+}
+
+// Helper: try to request camera permission via getUserMedia then close tracks before opening input
+async function requestCameraThenSelfieInput() {
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) return;
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+    stream.getTracks().forEach(t => t.stop());
+  } catch (err) {
+    console.warn("getUserMedia failed:", err);
+    throw err;
+  }
 }
 
 // ===============================
@@ -313,7 +481,7 @@ function initCheckoutHandler() {
 
   btnCheckout.addEventListener("click", () => {
     if (!navigator.geolocation) {
-      alert("Browser tidak menyokong GPS.");
+      showToast("Browser tidak menyokong GPS.");
       return;
     }
 
@@ -324,7 +492,7 @@ function initCheckoutHandler() {
         const place = await getLocationName(lat, lon);
         const id = localStorage.getItem("attendanceID");
         if (!id) {
-          alert("Tiada rekod Check In.");
+          showToast("Tiada rekod Check In.");
           return;
         }
 
@@ -365,14 +533,15 @@ function initCheckoutHandler() {
         if (btnCheckin) btnCheckin.disabled = false;
         if (btnCheckout) btnCheckout.disabled = true;
 
-        alert("✅ Check Out Berjaya");
+        showToast("Check Out successful");
+        showGreeting("");
       } catch (err) {
         console.error("Check-out failed:", err);
-        alert("❌ Tidak dapat mengambil lokasi Check Out.");
+        showToast("❌ Tidak dapat mengambil lokasi Check Out.");
       }
     }, function (error) {
       console.warn("Geolocation error:", error);
-      alert("❌ Tidak dapat mengambil lokasi Check Out.");
+      showToast("❌ Tidak dapat mengambil lokasi Check Out.");
     }, {
       enableHighAccuracy: true,
       timeout: 10000,
@@ -433,7 +602,7 @@ function updateWorkingDisplay() {
 }
 
 function startWorkingTimer() {
-  updateWorkingDisplay(); // initial run
+  updateWorkingDisplay();
   return setInterval(updateWorkingDisplay, 60000);
 }
 
@@ -443,6 +612,52 @@ function startWorkingTimer() {
 document.addEventListener("DOMContentLoaded", () => {
   initCheckinHandler();
   initCheckoutHandler();
+
+  // Wire selfie button (explicit selfie button on UI) - if clicked, ensure location exists then open camera
+  const btnSelfie = $("btn-selfie");
+  const selfieInput = $("selfieInput");
+  const btnCheckin = $("btn-checkin");
+  if (btnSelfie && selfieInput) {
+    btnSelfie.addEventListener("click", async () => {
+      // If we don't have pending location, try to get it first
+      if (!pendingCheckin.lat) {
+        if (!btnCheckin) return;
+        // reuse checkin flow to obtain location
+        btnCheckin.click();
+        return;
+      }
+      try {
+        await requestCameraThenSelfieInput().catch(() => {});
+      } finally {
+        selfieInput.value = "";
+        selfieInput.click();
+      }
+    });
+  }
+
+  // Location button quick action
+  const btnLocation = $("btn-location");
+  if (btnLocation) {
+    btnLocation.addEventListener("click", () => {
+      if (!navigator.geolocation) {
+        showToast("Browser tidak menyokong GPS.");
+        return;
+      }
+      navigator.geolocation.getCurrentPosition(async (pos) => {
+        const lat = pos.coords.latitude;
+        const lon = pos.coords.longitude;
+        const place = await getLocationName(lat, lon);
+        // store to pending location so later selfie/slide can use it
+        pendingCheckin.lat = lat;
+        pendingCheckin.lon = lon;
+        pendingCheckin.place = place;
+        showToast(`Lokasi: ${place}`);
+      }, (err) => {
+        console.warn("Location error:", err);
+        showToast("Gagal mendapatkan lokasi.");
+      }, { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 });
+    });
+  }
 
   // Restore UI from localStorage (defensive)
   const status = localStorage.getItem("status");
@@ -476,14 +691,14 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   }
 
-  // If there's an active attendance and driving status, resume tracking
   const attendanceID = localStorage.getItem("attendanceID");
   if (attendanceID && localStorage.getItem("status") === "Driving") {
     startTracking();
-    const btnCheckin = $("btn-checkin");
+    const btnCheckinEl = $("btn-checkin");
     const btnCheckout = $("btn-checkout");
-    if (btnCheckin) btnCheckin.disabled = true;
+    if (btnCheckinEl) btnCheckinEl.disabled = true;
     if (btnCheckout) btnCheckout.disabled = false;
+    showGreeting(driverName);
   } else {
     stopTracking();
   }

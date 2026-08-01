@@ -33,6 +33,32 @@ Loading...
 
 </div>
 
+<!-- Floating Action Button (keeps UI similar to Google Timeline) -->
+<div class="fab" aria-hidden="false">
+  <div class="actions hide" id="fabActions">
+    <div style="display:flex;align-items:center;">
+      <button id="editDayBtn"><span>Edit day</span></button>
+      <div class="icon-circle" title="edit">✏️</div>
+    </div>
+    <div style="display:flex;align-items:center;">
+      <button id="addVisitBtn"><span>Add visit</span></button>
+      <div class="icon-circle" title="add">📍</div>
+    </div>
+    <div style="display:flex;align-items:center;">
+      <button id="addNoteBtn"><span>Add note</span></button>
+      <div class="icon-circle" title="note">🗒️</div>
+    </div>
+    <div style="display:flex;align-items:center;">
+      <button id="deleteDayBtn"><span>Delete day</span></button>
+      <div class="icon-circle" title="delete">🗑️</div>
+    </div>
+  </div>
+
+  <div>
+    <button class="main" id="fabMain" aria-label="Open menu">✕</button>
+  </div>
+</div>
+
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
 <script type="module">
@@ -51,13 +77,18 @@ import {
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 /*
-  Behavior implemented:
-  - draw route polyline and markers
-  - animate a car marker along the route (time-compressed)
-  - detect stops >= 5 minutes (and small distance) then prompt user to name place
-  - allow manual "Add visit" buttons in timeline for missing place names
-  - save day's history to localStorage and write place names to Firestore tracking docs by updating them
+  Changes in this version:
+  - Use Mapbox Map Matching API to snap points to roads (requires MAPBOX_ACCESS_TOKEN)
+  - If matching succeeds, draw the snapped route and animate the car along the snapped geometry
+  - Fallback to raw polyline if Mapbox fails
+  - Keep existing Firestore updating / timeline / stop detection logic
+  - Add a floating action button (FAB) UI
+
+  IMPORTANT: Replace the MAPBOX_ACCESS_TOKEN placeholder with your token.
 */
+
+// Set your Mapbox token here (replace with actual token)
+const MAPBOX_ACCESS_TOKEN = '<YOUR_MAPBOX_ACCESS_TOKEN>'; // <-- replace me
 
 const map = L.map("map").setView([3.1390,101.6869],11);
 
@@ -67,6 +98,38 @@ L.tileLayer(
     maxZoom:19
   }
 ).addTo(map);
+
+// minimal inline styles to make FAB & rounded polyline visible (in case css file is missing)
+const styleEl = document.createElement('style');
+styleEl.innerHTML = `
+  html,body{height:100%;margin:0}
+  #map{height:40vh}
+  #timeline{height:60vh; overflow:auto; background:#fff; padding:12px}
+  .leaflet-container svg path { stroke-linecap: round; stroke-linejoin: round; }
+  .fab { position: fixed; bottom: 26px; right: 18px; z-index: 9999; display:flex; align-items:center; gap:10px; pointer-events: none; }
+  .fab .actions { display: flex; flex-direction: column; gap: 12px; margin-right: 12px; align-items: flex-end; pointer-events: auto; }
+  .fab button { pointer-events: auto; border: none; background: #fff; padding: 10px 14px; border-radius: 8px; box-shadow: 0 6px 18px rgba(0,0,0,0.18); cursor: pointer; display:flex; align-items:center; gap:10px; font-weight:600; }
+  .fab .main { width:56px; height:56px; border-radius:50%; background:#0ea5a4; color:#fff; font-size:28px; display:flex; align-items:center; justify-content:center; box-shadow: 0 10px 20px rgba(0,0,0,0.25); pointer-events:auto; }
+  .fab .actions.hide { display:none; }
+  .fab .icon-circle { width:38px; height:38px; border-radius:50%; background:#fff; display:inline-flex; align-items:center; justify-content:center; box-shadow: 0 4px 10px rgba(0,0,0,0.12); }
+  .timeline-item strong { display:block; font-size:16px; }
+  .timeline-item { padding:14px 8px; border-left:4px solid #00a3b5; margin-bottom:8px; background:#fff }
+`;
+document.head.appendChild(styleEl);
+
+// FAB behavior
+const fabMain = document.getElementById('fabMain');
+const fabActions = document.getElementById('fabActions');
+fabMain.addEventListener('click', ()=>{
+  const open = !fabActions.classList.contains('hide');
+  if(open){
+    fabActions.classList.add('hide');
+    fabMain.textContent = '✕';
+  } else {
+    fabActions.classList.remove('hide');
+    fabMain.textContent = '×';
+  }
+});
 
 // get attendance ID from URL
 const params = new URLSearchParams(window.location.search);
@@ -104,7 +167,7 @@ if(trackingSnap.empty){
 }
 
 // Build an array of points with times and refs for easy manipulation
-let points = []; // {lat, lng, timeMs, place, docRef, rawTime}
+let points = []; // {lat, lng, timeMs, place, docRef, raw}
 trackingSnap.docs.forEach((d)=>{
   const data = d.data();
   let ts = null;
@@ -118,8 +181,8 @@ trackingSnap.docs.forEach((d)=>{
     ts = new Date(); // fallback
   }
   points.push({
-    lat: data.latitude,
-    lng: data.longitude,
+    lat: Number(data.latitude),
+    lng: Number(data.longitude),
     timeMs: ts.getTime(),
     place: data.place || null,
     docRef: d.ref,
@@ -149,6 +212,9 @@ function calculateDistance(lat1, lon1, lat2, lon2){
 const timelineList = document.getElementById("timelineList");
 let totalDistance = 0;
 let timelineHTML = "";
+
+// ensure sorted by time and numeric coercion already done
+points.sort((a,b)=> a.timeMs - b.timeMs);
 
 for(let i=0;i<points.length;i++){
   const p = points[i];
@@ -212,23 +278,72 @@ timelineHTML += `
 
 timelineList.innerHTML = timelineHTML;
 
-// draw polyline and markers
-const routePoints = points.map(p=>[p.lat,p.lng]);
+// route fallback points (raw)
+const rawRoutePoints = points.map(p=>[p.lat,p.lng]);
 
-const polyline = L.polyline(routePoints, { color:"blue", weight:5 }).addTo(map);
-map.fitBounds(polyline.getBounds());
+// draw snapped route using Mapbox Map Matching
+async function drawSnappedRoute(){
+  if(points.length < 2){
+    // nothing to draw
+    if(rawRoutePoints.length) L.polyline(rawRoutePoints, { color:"blue", weight:5 }).addTo(map);
+    return null;
+  }
 
-// add markers for check in/out if present
-if(attendanceData.checkIn && routePoints.length>0){
-  let checkInTime = attendanceData.checkIn.toDate ? attendanceData.checkIn.toDate().toLocaleString("ms-MY") : new Date(attendanceData.checkIn).toLocaleString("ms-MY");
-  L.marker(routePoints[0]).addTo(map).bindPopup("🟢 CHECK IN<br>📍 " + (attendanceData.location || "-") + "<br>🕒 " + checkInTime);
+  // build coordinate string lon,lat; Mapbox expects lon,lat
+  const coordPairs = points.map(p => `${p.lng},${p.lat}`).join(';');
+  // timestamps in seconds (improve matching) - include only if available
+  const timestamps = points.map(p => Math.floor(p.timeMs/1000)).join(';');
+
+  // Mapbox Map Matching endpoint
+  const url = `https://api.mapbox.com/matching/v5/mapbox/driving/${coordPairs}?geometries=geojson&overview=full&access_token=${MAPBOX_ACCESS_TOKEN}&timestamps=${timestamps}`;
+
+  try{
+    const res = await fetch(url);
+    if(!res.ok) throw new Error('Mapbox match failed: ' + res.status + ' ' + res.statusText);
+    const json = await res.json();
+
+    if(json && json.matchings && json.matchings.length){
+      // combine coordinates from all matchings
+      let combined = [];
+      json.matchings.forEach(m => {
+        if(m.geometry && m.geometry.coordinates && m.geometry.coordinates.length){
+          combined = combined.concat(m.geometry.coordinates);
+        }
+      });
+      // dedupe consecutive identical coords (small optimization)
+      const dedup = [];
+      for(const c of combined){
+        const last = dedup[dedup.length-1];
+        if(!last || last[0] !== c[0] || last[1] !== c[1]) dedup.push(c);
+      }
+      const snappedLatLngs = dedup.map(c => [c[1], c[0]]);
+
+      // draw primary route (purple) and pale outline for contrast
+      const route = L.polyline(snappedLatLngs, { color: '#5b21b6', weight: 8, opacity: 0.98 }).addTo(map);
+      L.polyline(snappedLatLngs, { color: '#ffffff', weight: 12, opacity: 0.3, interactive:false }).addTo(map);
+
+      map.fitBounds(route.getBounds(), { padding: [40,40] });
+
+      // start/end markers
+      L.circleMarker(snappedLatLngs[0], { radius:7, color:'#1f8ef1', fillColor:'#1f8ef1', fillOpacity:1 }).bindPopup('Start').addTo(map);
+      L.circleMarker(snappedLatLngs[snappedLatLngs.length-1], { radius:7, color:'#ef4444', fillColor:'#ef4444', fillOpacity:1 }).bindPopup('End').addTo(map);
+
+      return snappedLatLngs;
+    } else {
+      console.warn('Mapbox returned no matchings, falling back to raw polyline');
+      const pl = L.polyline(rawRoutePoints, { color:"blue", weight:6, opacity:0.95 }).addTo(map);
+      map.fitBounds(pl.getBounds(), { padding: [30,30] });
+      return rawRoutePoints;
+    }
+  }catch(err){
+    console.error('Mapbox matching error, using fallback polyline', err);
+    const pl = L.polyline(rawRoutePoints, { color:"blue", weight:6, opacity:0.95 }).addTo(map);
+    if(rawRoutePoints.length) map.fitBounds(pl.getBounds(), { padding: [30,30] });
+    return rawRoutePoints;
+  }
 }
-if(attendanceData.checkOut && routePoints.length>0){
-  let checkOutTime = attendanceData.checkOut.toDate ? attendanceData.checkOut.toDate().toLocaleString("ms-MY") : new Date(attendanceData.checkOut).toLocaleString("ms-MY");
-  L.marker(routePoints[routePoints.length-1]).addTo(map).bindPopup("🔴 CHECK OUT<br>📍 " + (attendanceData.checkoutLocation || "-") + "<br>🕒 " + checkOutTime);
-}
 
-// Create a car icon (using emoji in a div icon so we don't need extra assets)
+// Create a car icon
 const carIcon = L.divIcon({
   html: `<div style="font-size:22px; transform: translate(-50%,-50%);">🚗</div>`,
   className: '',
@@ -236,82 +351,80 @@ const carIcon = L.divIcon({
   iconAnchor: [14,14]
 });
 
-// moving marker
-let movingMarker = L.marker(routePoints[0], { icon: carIcon }).addTo(map);
+let movingMarker = null;
 
-// animate along points using time differences (time-compressed)
-async function animateAlongPoints(pointsArray){
-  if(pointsArray.length <= 1) return;
-  // speed compression factor (real time / factor)
-  // e.g., factor = 30 compresses 30x (so a 30-min gap lasts 1 minute)
-  const speedFactor = 30;
-  const handledStops = new Set();
+// animate along a provided latlng array (snapped or raw)
+async function animateAlongLatLngs(latlngs, pointsArray){
+  if(!latlngs || latlngs.length <= 1) return;
+  // place marker at first
+  if(!movingMarker){
+    movingMarker = L.marker(latlngs[0], { icon: carIcon }).addTo(map);
+  } else {
+    movingMarker.setLatLng(latlngs[0]);
+  }
 
-  for(let i=0;i<pointsArray.length-1;i++){
-    const p1 = pointsArray[i];
-    const p2 = pointsArray[i+1];
+  // We'll animate along the snapped latlngs with a constant speed approximation based on total duration
+  // Compute total recorded time from pointsArray
+  const startTime = pointsArray[0].timeMs;
+  const endTime = pointsArray[pointsArray.length-1].timeMs;
+  let totalRecordedMs = endTime - startTime;
+  if(!totalRecordedMs || totalRecordedMs <= 0) totalRecordedMs = 600000; // fallback 10min
+  const speedFactor = 40; // increase to compress more
+  const totalMs = Math.max(1000, Math.floor(totalRecordedMs / speedFactor));
 
-    const segmentDistance = calculateDistance(p1.lat, p1.lng, p2.lat, p2.lng); // km
-    // compute duration (ms) based on time difference, compressed
-    let dt = p2.timeMs - p1.timeMs;
-    if(!dt || dt <= 0) dt = 2000; // fallback 2s
-    let durationMs = Math.max(800, Math.floor(dt / speedFactor));
+  // build distances along snapped path
+  const segmentDistances = [];
+  let totalDist = 0;
+  for(let i=0;i<latlngs.length-1;i++){
+    const d = calculateDistance(latlngs[i][0], latlngs[i][1], latlngs[i+1][0], latlngs[i+1][1]);
+    segmentDistances.push(d);
+    totalDist += d;
+  }
 
-    // animate linear interpolation between p1 -> p2 over durationMs
-    const frames = Math.max(8, Math.floor(durationMs / 40)); // ~25fps clamp
+  // If totalDist is zero fallback to equal-time segments
+  for(let i=0;i<latlngs.length-1;i++){
+    const frac = totalDist > 0 ? (segmentDistances[i]/totalDist) : (1/(latlngs.length-1));
+    const segMs = Math.max(200, Math.floor(totalMs * frac));
+    const frames = Math.max(6, Math.floor(segMs/30));
     for(let f=1; f<=frames; f++){
       const t = f/frames;
-      const lat = p1.lat + (p2.lat - p1.lat) * t;
-      const lng = p1.lng + (p2.lng - p1.lng) * t;
+      const lat = latlngs[i][0] + (latlngs[i+1][0] - latlngs[i][0]) * t;
+      const lng = latlngs[i][1] + (latlngs[i+1][1] - latlngs[i][1]) * t;
       movingMarker.setLatLng([lat,lng]);
-      await new Promise(res => setTimeout(res, Math.floor(durationMs/frames)));
+      // small sleep
+      // eslint-disable-next-line no-await-in-loop
+      await new Promise(res => setTimeout(res, Math.floor(segMs/frames)));
     }
+  }
+}
 
-    // arrived at p2 - after arriving, check for a stop after p2 (i.e., gap to next point)
+// keep original stop detection & prompting logic but we will animate on snapped path
+async function animateAndDetectStops(pointsArray){
+  // detect stops using original points (unchanged)
+  if(pointsArray.length <= 1) return;
+  const handledStops = new Set();
+  for(let i=0;i<pointsArray.length-1;i++){
+    // detect stop between i and i+1 as before
     if(i+1 < pointsArray.length - 1){
-      const deltaMs = pointsArray[i+2].timeMs - p2.timeMs;
-      const distNext = calculateDistance(p2.lat, p2.lng, pointsArray[i+2].lat, pointsArray[i+2].lng);
+      const deltaMs = pointsArray[i+2].timeMs - pointsArray[i+1].timeMs;
+      const distNext = calculateDistance(pointsArray[i+1].lat, pointsArray[i+1].lng, pointsArray[i+2].lat, pointsArray[i+2].lng);
       if(deltaMs >= 5*60*1000 && distNext <= 0.05){
-        // we consider this a stop. If not handled already, prompt user to add place
         if(!handledStops.has(i+1)){
-          // small delay so UI updates first
-          await new Promise(res => setTimeout(res, 200));
-          // Prompt the user
-          const defaultName = pointsArray[i+1].place || `Location (${p2.lat.toFixed(5)}, ${p2.lng.toFixed(5)})`;
+          await new Promise(res => setTimeout(res, 120));
+          const defaultName = pointsArray[i+1].place || `Location (${pointsArray[i+1].lat.toFixed(5)}, ${pointsArray[i+1].lng.toFixed(5)})`;
           const placeName = prompt(`You stopped for ${(deltaMs/60000).toFixed(0)} minutes here. Enter place name:`, defaultName);
           if(placeName && placeName.trim() !== ""){
-            // Update Firestore doc (if docRef exists)
             try{
               if(pointsArray[i+1].docRef){
                 await updateDoc(pointsArray[i+1].docRef, { place: placeName });
-                // reflect locally in pointsArray & timeline UI
                 pointsArray[i+1].place = placeName;
                 const el = document.getElementById(`timeline-item-${i+1}`);
                 if(el) el.querySelector('strong').innerText = placeName;
               }
-            }catch(err){
-              console.error("Failed to update place in Firestore", err);
-              alert("Gagal menyimpan tempat ke Firestore: " + err.message);
-            }
-            // save to local history
-            addToLocalHistory({
-              type: "stop",
-              timeMs: p2.timeMs,
-              lat: p2.lat,
-              lng: p2.lng,
-              place: placeName,
-              durationMin: Math.round(deltaMs/60000)
-            });
+            }catch(err){ console.error('Failed to update place', err); alert('Gagal menyimpan tempat ke Firestore: ' + err.message); }
+            addToLocalHistory({ type: 'stop', timeMs: pointsArray[i+1].timeMs, lat: pointsArray[i+1].lat, lng: pointsArray[i+1].lng, place: placeName, durationMin: Math.round(deltaMs/60000) });
           } else {
-            // still save a record that there was an unnamed stop
-            addToLocalHistory({
-              type: "stop",
-              timeMs: p2.timeMs,
-              lat: p2.lat,
-              lng: p2.lng,
-              place: null,
-              durationMin: Math.round(deltaMs/60000)
-            });
+            addToLocalHistory({ type: 'stop', timeMs: pointsArray[i+1].timeMs, lat: pointsArray[i+1].lat, lng: pointsArray[i+1].lng, place: null, durationMin: Math.round(deltaMs/60000) });
           }
           handledStops.add(i+1);
         }
@@ -322,29 +435,20 @@ async function animateAlongPoints(pointsArray){
 
 // Local history saving function (stores an array per day/attendance)
 function addToLocalHistory(entry){
-  // Use a key per attendanceID & date (YYYY-MM-DD)
   const dateKey = new Date().toISOString().slice(0,10); //yyyy-mm-dd
   const localKey = `timeline_history_${attendanceID}_${dateKey}`;
   let arr = [];
-  try{
-    const raw = localStorage.getItem(localKey);
-    if(raw) arr = JSON.parse(raw);
-  }catch(e){ arr = []; }
+  try{ const raw = localStorage.getItem(localKey); if(raw) arr = JSON.parse(raw); }catch(e){ arr = []; }
   arr.push(entry);
-  try{
-    localStorage.setItem(localKey, JSON.stringify(arr));
-    console.log("Saved to local history", localKey, entry);
-  }catch(e){
-    console.warn("Failed to save local history", e);
-  }
+  try{ localStorage.setItem(localKey, JSON.stringify(arr)); console.log('Saved to local history', localKey, entry); }catch(e){ console.warn('Failed to save local history', e); }
 }
 
 // manual "Add visit" invoked by timeline buttons
 window.addVisit = async function(index){
   const p = points[index];
-  if(!p) return alert("Point not found");
+  if(!p) return alert('Point not found');
   const defaultName = p.place || `Location (${p.lat.toFixed(5)}, ${p.lng.toFixed(5)})`;
-  const placeName = prompt("Enter place name for this visit:", defaultName);
+  const placeName = prompt('Enter place name for this visit:', defaultName);
   if(placeName && placeName.trim() !== ""){
     try{
       if(p.docRef){
@@ -352,44 +456,50 @@ window.addVisit = async function(index){
         p.place = placeName;
         const el = document.getElementById(`timeline-item-${index}`);
         if(el) el.querySelector('strong').innerText = placeName;
-        addToLocalHistory({
-          type: "visit",
-          timeMs: p.timeMs,
-          lat: p.lat,
-          lng: p.lng,
-          place: placeName
-        });
-        alert("Place saved.");
+        addToLocalHistory({ type: 'visit', timeMs: p.timeMs, lat: p.lat, lng: p.lng, place: placeName });
+        alert('Place saved.');
       } else {
-        alert("No docRef available to update in Firestore.");
+        alert('No docRef available to update in Firestore.');
       }
-    }catch(err){
-      console.error("Failed saving visit", err);
-      alert("Gagal menyimpan ke Firestore: " + err.message);
-    }
+    }catch(err){ console.error('Failed saving visit', err); alert('Gagal menyimpan ke Firestore: ' + err.message); }
   }
 };
 
-// Save day history button: collect local entries for the day and copy to a master local key (or optionally send to Firestore)
+// Save day history button
 document.getElementById("saveHistoryBtn").addEventListener("click", ()=>{
   const dateKey = new Date().toISOString().slice(0,10);
   const localKey = `timeline_history_${attendanceID}_${dateKey}`;
   const raw = localStorage.getItem(localKey);
-  if(!raw){
-    alert("Tiada sejarah untuk hari ini disimpan lagi.");
-    return;
-  }
-  // Optionally: confirm or show
+  if(!raw){ alert("Tiada sejarah untuk hari ini disimpan lagi."); return; }
   alert("Sejarah hari ini disimpan secara setempat (localStorage). Key: " + localKey);
   console.log("Saved history:", localKey, JSON.parse(raw));
 });
 
-// Start animation
-animateAlongPoints(points).catch(err=>{
-  console.error("Animation error:", err);
-});
+// Main: draw snapped route then animate and detect stops
+(async function main(){
+  // draw snapped route (Mapbox) or fallback
+  let latlngs = null;
+  if(!MAPBOX_ACCESS_TOKEN || MAPBOX_ACCESS_TOKEN.includes('<YOUR_MAPBOX_ACCESS_TOKEN>')){
+    console.warn('Mapbox token not set or placeholder found — drawing raw polyline fallback. Set MAPBOX_ACCESS_TOKEN at top to enable snapping.');
+    const pl = L.polyline(rawRoutePoints, { color:"blue", weight:6, opacity:0.95 }).addTo(map);
+    if(rawRoutePoints.length) map.fitBounds(pl.getBounds(), { padding: [30,30] });
+    latlngs = rawRoutePoints;
+  } else {
+    latlngs = await drawSnappedRoute();
+  }
 
-// Optionally: you can also auto-save an overall day summary now that we have points
+  // animate along snapped latlngs if available, otherwise raw
+  if(latlngs && latlngs.length){
+    try{
+      await Promise.all([
+        animateAlongLatLngs(latlngs, points),
+        animateAndDetectStops(points) // detect/prompt stops in parallel (non-blocking)
+      ]);
+    }catch(err){ console.error('Animation error:', err); }
+  }
+})();
+
+// Optionally: auto-save day summary
 (function autoSaveDaySummary(){
   try{
     const dateKey = new Date().toISOString().slice(0,10);
@@ -401,8 +511,8 @@ animateAlongPoints(points).catch(err=>{
       timestampSample: points.length ? new Date(points[0].timeMs).toISOString() : new Date().toISOString()
     };
     localStorage.setItem(summaryKey, JSON.stringify(summary));
-    console.log("Saved day summary:", summaryKey, summary);
-  }catch(e){console.warn("Failed save day summary", e);}
+    console.log('Saved day summary:', summaryKey, summary);
+  }catch(e){console.warn('Failed save day summary', e);} 
 })();
 
 </script>

@@ -7,8 +7,10 @@
 
 <meta name="viewport" content="width=device-width, initial-scale=1">
 
+
 <link rel="stylesheet"
-href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+
 
 <style>
 
@@ -18,28 +20,67 @@ padding:0;
 font-family:Arial;
 }
 
+
 #map{
-height:65vh;
 width:100%;
+height:65vh;
 }
 
-#timeline{
+
+#panel{
+
 padding:15px;
 background:white;
+
 }
 
-.timeline-item{
-padding:10px;
-margin-bottom:10px;
-border-left:5px solid #2196f3;
+
+.card{
+
 background:#f5f5f5;
-border-radius:5px;
+padding:12px;
+margin-bottom:10px;
+border-radius:8px;
+
+border-left:5px solid #2196f3;
+
 }
 
-.info{
-font-weight:bold;
-font-size:16px;
+
+button{
+
+padding:10px;
+margin:5px;
+border:none;
+border-radius:5px;
+cursor:pointer;
+
 }
+
+
+.saveBtn{
+
+background:#2196f3;
+color:white;
+
+}
+
+
+.editBtn{
+
+background:#ff9800;
+color:white;
+
+}
+
+
+.deleteBtn{
+
+background:#f44336;
+color:white;
+
+}
+
 
 </style>
 
@@ -52,26 +93,51 @@ font-size:16px;
 <div id="map"></div>
 
 
-<div id="timeline">
+<div id="panel">
 
-<h3>🚗 TRIP TIMELINE</h3>
 
-<div id="summary"></div>
+<h2>🚗 TRIP ROUTE</h2>
 
-<div id="timelineList">
+
+<div id="summary">
+
 Loading...
+
 </div>
-<hr>
+
+
 
 <h3>📍 Saved Location</h3>
 
-<button onclick="saveCurrentLocation()">
+
+<button class="saveBtn"
+id="saveLocationBtn">
+
 ➕ SAVE LOCATION
+
 </button>
 
+
+
 <div id="placeList">
+
 Loading...
+
 </div>
+
+
+
+<h3>🕒 Timeline</h3>
+
+
+<div id="timelineList">
+
+Loading...
+
+</div>
+
+
+
 </div>
 
 
@@ -79,429 +145,13 @@ Loading...
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
 
-<script type="module">
+<script type="module" src="./js/route.js"></script>
 
-import { db } from "./js/firebase.js";
-import {
-savePlace,
-loadPlaces,
-editPlace,
-deletePlace
-} from "./js/savedPlaces.js";
 
-import {
-  collection,
-  getDocs,
-  getDoc,
-  doc,
-  query,
-  orderBy
-} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+<script src="./js/theme.js"></script>
 
-const map = L.map("map").setView([3.139,101.6869],12);
+<script src="./js/language.js"></script>
 
-L.tileLayer(
-  "https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png",
-  {
-    maxZoom:19,
-    attribution:'© OpenStreetMap © CARTO'
-  }
-).addTo(map);
-
-const params = new URLSearchParams(window.location.search);
-const attendanceID = params.get("id");
-
-if(!attendanceID){
-  alert("ID attendance tiada");
-  throw new Error("Missing ID");
-}
-
-function formatTime(t){
-
-  if(!t) return "-";
-
-  if(t.toDate){
-    return t.toDate().toLocaleString("ms-MY");
-  }
-
-  return new Date(t).toLocaleString("ms-MY");
-}
-
-const attendanceSnap =
-await getDoc(
-  doc(db,"attendance",attendanceID)
-);
-
-if(!attendanceSnap.exists()){
-  alert("Attendance tidak wujud");
-  throw new Error("Attendance tidak wujud");
-}
-
-const attendanceData = attendanceSnap.data();
-
-const trackingQuery = query(
-  collection(
-    db,
-    "attendance",
-    attendanceID,
-    "tracking"
-  ),
-  orderBy("time","asc")
-);
-
-const trackingSnap = await getDocs(trackingQuery);
-
-let points = [];
-let counter = 0;
-let timeline = "";
-trackingSnap.forEach((item)=>{
-
-const data = item.data();
-
-if(data.latitude && data.longitude){
-
-if(counter % 5 === 0){
-
-points.push([
-data.latitude,
-data.longitude
-]);
-
-}
-
-counter++;
-
-timeline += `
-
-<div class="timeline-item">
-
-🚗 Tracking Point<br>
-
-📍 ${data.place || "-"}
-
-<br>
-
-🕒 ${formatTime(data.time)}
-
-</div>
-
-`;
-
-}
-
-});
-
-document
-.getElementById("timelineList")
-.innerHTML = timeline;
-
-if(points.length < 2){
-
-alert("Tracking tidak cukup untuk route");
-
-throw new Error("Tracking tidak cukup");
-
-}
-
-const coordinateString = points
-.map(p => `${p[1]},${p[0]}`)
-.join(";");
-
-const osrmURL =
-`https://router.project-osrm.org/route/v1/driving/${coordinateString}?overview=full&geometries=geojson`;
-
-const osrmResponse =
-await fetch(osrmURL);
-
-const osrmData =
-await osrmResponse.json();
-
-let route = [];
-let distanceKM = 0;
-
-if(osrmData.routes && osrmData.routes.length > 0){
-
-distanceKM =
-osrmData.routes[0].distance / 1000;
-
-route =
-osrmData.routes[0]
-.geometry
-.coordinates
-.map(c => [c[1], c[0]]);
-
-}
-document.getElementById("summary").innerHTML = `
-
-<div class="timeline-item info">
-
-📏 Jarak:
-${distanceKM.toFixed(2)} KM
-
-<br>
-
-📍 Tracking Point:
-${points.length}
-
-</div>
-
-`;
-
-const polyline = L.polyline(route,{
-color:"blue",
-weight:6
-}).addTo(map);
-
-map.fitBounds(polyline.getBounds());
-
-
-// CHECK IN
-if(attendanceData.checkIn){
-
-L.marker(points[0],{
-icon:L.icon({
-iconUrl:"https://maps.google.com/mapfiles/ms/icons/green-dot.png",
-iconSize:[32,32]
-})
-})
-.addTo(map)
-.bindPopup(`
-🟢 CHECK IN
-<br>
-📍 ${attendanceData.location || "-"}
-<br>
-🕒 ${formatTime(attendanceData.checkIn)}
-`);
-
-}
-
-
-// CHECK OUT
-if(attendanceData.checkOut){
-
-L.marker(points[points.length-1],{
-icon:L.icon({
-iconUrl:"https://maps.google.com/mapfiles/ms/icons/red-dot.png",
-iconSize:[32,32]
-})
-})
-.addTo(map)
-.bindPopup(`
-🔴 CHECK OUT
-<br>
-📍 ${attendanceData.checkoutLocation || "-"}
-<br>
-🕒 ${formatTime(attendanceData.checkOut)}
-`);
-
-}
-
-
-// TRACKING MARKER
-points.forEach((p,index)=>{
-
-L.circleMarker(p,{
-radius:4
-})
-.addTo(map)
-.bindPopup(`
-🚗 Point ${index+1}
-`);
-
-});
-
-
-// ANIMASI KERETA
-const carIcon = L.icon({
-iconUrl:"https://cdn-icons-png.flaticon.com/512/744/744465.png",
-iconSize:[40,40]
-});
-
-const car = L.marker(route[0],{
-icon:carIcon
-}).addTo(map);
-
-let carIndex = 0;
-
-function moveCar(){
-
-if(carIndex >= route.length){
-return;
-}
-
-car.setLatLng(route[carIndex]);
-
-carIndex++;
-
-setTimeout(moveCar,80);
-
-}
-
-moveCar();
-async function saveCurrentLocation(){
-
-if(points.length == 0){
-alert("Tiada lokasi");
-return;
-}
-
-let last = points[points.length-1];
-
-let name = prompt("Nama tempat:");
-
-if(!name) return;
-
-
-await savePlace(
-name,
-last[0],
-last[1]
-);
-
-
-alert("Lokasi disimpan");
-
-showPlaces();
-
-}
-
-
-async function showPlaces(){
-
-let places = await loadPlaces();
-
-let html="";
-
-
-places.forEach(place=>{
-
-html += `
-
-<div class="timeline-item">
-
-📍 ${place.name}
-
-<br>
-
-<button class="editBtn" data-id="${place.id}" data-name="${place.name}">
-✏️ EDIT
-</button>
-
-
-<button class="deleteBtn" data-id="${place.id}">
-🗑️ DELETE
-</button>
-
-</div>
-
-`;
-
-});
-
-
-document.getElementById("placeList").innerHTML = html;
-
-
-// EDIT BUTTON
-
-document.querySelectorAll(".editBtn")
-.forEach(btn=>{
-
-btn.onclick = async ()=>{
-
-let id = btn.dataset.id;
-
-let oldName = btn.dataset.name;
-
-
-let baru = prompt(
-"Tukar nama:",
-oldName
-);
-
-
-if(baru){
-
-await editPlace(id,baru);
-
-showPlaces();
-
-}
-
-};
-
-
-});
-
-
-// DELETE BUTTON
-
-document.querySelectorAll(".deleteBtn")
-.forEach(btn=>{
-
-btn.onclick = async ()=>{
-
-if(confirm("Padam lokasi?")){
-
-await deletePlace(btn.dataset.id);
-
-showPlaces();
-
-}
-
-};
-
-
-});
-
-
-}
-
-async function renamePlace(id,name){
-
-let baru = prompt(
-"Tukar nama:",
-name
-);
-
-
-if(baru){
-
-await editPlace(
-id,
-baru
-);
-
-showPlaces();
-
-}
-
-}
-
-
-
-async function removePlace(id){
-
-if(confirm("Padam lokasi?")){
-
-await deletePlace(id);
-
-showPlaces();
-
-}
-
-}
-
-
-window.saveCurrentLocation = saveCurrentLocation;
-window.renamePlace = renamePlace;
-window.removePlace = removePlace;
-
-
-showPlaces();
-console.log("Route siap",route);
-
-</script>
 
 </body>
 

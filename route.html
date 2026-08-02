@@ -98,12 +98,503 @@ const map=L.map("map")
 
 
 L.tileLayer(
-"https://tile.openstreetmap.org/{z}/{x}/{y}.png",
+"https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png",
 {
-maxZoom:19
+maxZoom:19,
+attribution:
+'© OpenStreetMap © CARTO'
 }
 ).addTo(map);
 
+
+
+
+
+const params=
+new URLSearchParams(window.location.search);
+
+
+const attendanceID=params.get("id");
+
+
+
+if(!attendanceID){
+
+alert("ID attendance tiada");
+throw Error("Missing ID");
+
+}
+
+
+
+
+
+function formatTime(t){
+
+if(!t)
+return "-";
+
+
+if(t.toDate)
+return t.toDate()
+.toLocaleString("ms-MY");
+
+
+return new Date(t)
+.toLocaleString("ms-MY");
+
+}
+
+
+
+
+
+// Ambil attendance
+
+
+const attendanceSnap=
+await getDoc(
+doc(db,"attendance",attendanceID)
+);
+
+
+if(!attendanceSnap.exists()){
+
+alert("Attendance tidak wujud");
+throw Error();
+
+}
+
+
+
+const attendanceData=
+attendanceSnap.data();
+
+
+
+
+
+// Ambil tracking
+
+
+const trackingQuery=query(
+
+collection(
+db,
+"attendance",
+attendanceID,
+"tracking"
+),
+
+orderBy(
+"time",
+"asc"
+)
+
+);
+
+
+
+const trackingSnap=
+await getDocs(trackingQuery);
+
+
+
+let points=[];
+
+let counter=0;
+
+let timeline="";
+
+
+
+trackingSnap.forEach((item)=>{
+
+
+const data=item.data();
+
+
+
+if(
+data.latitude &&
+data.longitude
+){
+
+
+if(counter % 5 === 0){
+
+points.push([
+data.latitude,
+data.longitude
+]);
+
+}
+
+counter++;
+
+
+timeline +=`
+
+<div class="timeline-item">
+
+🚗 Tracking Point<br>
+
+📍 ${data.place || "-"}<br>
+
+🕒 ${formatTime(data.time)}
+
+</div>
+
+`;
+
+
+}
+
+
+
+});
+
+
+
+document
+.getElementById("timelineList")
+.innerHTML=timeline;
+
+
+
+
+if(points.length<2){
+
+alert("Tracking tidak cukup untuk route");
+
+throw Error();
+
+}
+// ===============================
+// OSRM ROUTING
+// ===============================
+
+
+const coordinateString = points
+.map(p => `${p[1]},${p[0]}`)
+.join(";");
+
+
+
+const osrmURL =
+`https://router.project-osrm.org/route/v1/driving/${coordinateString}?overview=full&geometries=geojson`;
+
+
+
+const osrmResponse =
+await fetch(osrmURL);
+
+
+
+const osrmData =
+await osrmResponse.json();
+
+
+
+let route=[];
+
+let distanceKM=0;
+
+
+
+if(osrmData.routes.length){
+
+
+distanceKM =
+(osrmData.routes[0].distance / 1000);
+
+
+
+route =
+osrmData.routes[0]
+.geometry
+.coordinates
+.map(c=>[c[1],c[0]]);
+
+
+
+}
+
+
+
+
+
+// ===============================
+// PAPAR INFO
+// ===============================
+
+
+document
+.getElementById("summary")
+.innerHTML=`
+
+<div class="timeline-item info">
+
+📏 Jarak:
+${distanceKM.toFixed(2)} KM
+
+<br>
+
+📍 Tracking Point:
+${points.length}
+
+</div>
+
+`;
+
+
+
+
+
+// ===============================
+// LUKIS ROUTE
+// ===============================
+
+
+const polyline =
+L.polyline(
+route,
+{
+color:"blue",
+weight:6
+}
+)
+.addTo(map);
+
+
+
+map.fitBounds(
+polyline.getBounds()
+);
+
+
+
+
+
+// ===============================
+// MARKER CHECK IN
+// ===============================
+
+
+if(attendanceData.checkIn){
+
+
+L.marker(points[0],{
+
+icon:
+L.icon({
+
+iconUrl:
+"https://maps.google.com/mapfiles/ms/icons/green-dot.png",
+
+iconSize:[32,32]
+
+})
+
+})
+
+.addTo(map)
+
+.bindPopup(
+
+`
+🟢 CHECK IN
+<br>
+📍 ${attendanceData.location || "-"}
+<br>
+🕒 ${formatTime(attendanceData.checkIn)}
+
+`
+
+);
+
+
+}
+
+
+
+
+
+
+// ===============================
+// MARKER CHECK OUT
+// ===============================
+
+
+if(attendanceData.checkOut){
+
+
+L.marker(
+points[points.length-1],
+{
+
+icon:
+L.icon({
+
+iconUrl:
+"https://maps.google.com/mapfiles/ms/icons/red-dot.png",
+
+iconSize:[32,32]
+
+})
+
+}
+
+)
+
+.addTo(map)
+
+.bindPopup(
+
+`
+🔴 CHECK OUT
+<br>
+📍 ${attendanceData.checkoutLocation || "-"}
+<br>
+🕒 ${formatTime(attendanceData.checkOut)}
+
+`
+
+);
+
+
+}
+
+
+
+
+
+
+// ===============================
+// MARKER TRACKING (setiap 5 point)
+// ===============================
+
+
+points.forEach((p,index)=>{
+
+
+if(index % 5 === 0){
+
+
+L.circleMarker(
+p,
+{
+
+radius:5
+
+}
+
+)
+
+.addTo(map)
+
+.bindPopup(
+`
+🚗 Tracking
+<br>
+Point ${index+1}
+`
+);
+
+
+}
+
+
+});
+
+
+
+
+
+
+// ===============================
+// ANIMASI KERETA
+// ===============================
+
+
+const carIcon =
+L.icon({
+
+iconUrl:
+"https://cdn-icons-png.flaticon.com/512/744/744465.png",
+
+iconSize:
+[40,40]
+
+});
+
+
+
+const car =
+L.marker(
+route[0],
+{
+icon:carIcon
+}
+
+)
+
+.addTo(map);
+
+
+
+
+
+let carIndex=0;
+
+
+
+function moveCar(){
+
+
+if(carIndex >= route.length)
+return;
+
+
+
+car.setLatLng(
+route[carIndex]
+);
+
+
+
+carIndex++;
+
+
+
+setTimeout(
+moveCar,
+80
+);
+
+
+}
+
+
+
+moveCar();
+
+
+
+
+
+console.log(
+"Route siap",
+route
+);
+
+
+</script>
+
+
+</body>
+
+</html>
 
 
 

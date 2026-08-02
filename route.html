@@ -61,7 +61,17 @@ font-size:16px;
 <div id="timelineList">
 Loading...
 </div>
+<hr>
 
+<h3>📍 Saved Location</h3>
+
+<button onclick="saveCurrentLocation()">
+➕ SAVE LOCATION
+</button>
+
+<div id="placeList">
+Loading...
+</div>
 </div>
 
 
@@ -72,6 +82,12 @@ Loading...
 <script type="module">
 
 import { db } from "./js/firebase.js";
+import {
+savePlace,
+loadPlaces,
+editPlace,
+deletePlace
+} from "./js/savedPlaces.js";
 
 import {
   collection,
@@ -322,7 +338,167 @@ setTimeout(moveCar,80);
 }
 
 moveCar();
+async function saveCurrentLocation(){
 
+if(points.length == 0){
+alert("Tiada lokasi");
+return;
+}
+
+let last = points[points.length-1];
+
+let name = prompt("Nama tempat:");
+
+if(!name) return;
+
+
+await savePlace(
+name,
+last[0],
+last[1]
+);
+
+
+alert("Lokasi disimpan");
+
+showPlaces();
+
+}
+
+
+async function showPlaces(){
+
+let places = await loadPlaces();
+
+let html="";
+
+
+places.forEach(place=>{
+
+html += `
+
+<div class="timeline-item">
+
+📍 ${place.name}
+
+<br>
+
+<button class="editBtn" data-id="${place.id}" data-name="${place.name}">
+✏️ EDIT
+</button>
+
+
+<button class="deleteBtn" data-id="${place.id}">
+🗑️ DELETE
+</button>
+
+</div>
+
+`;
+
+});
+
+
+document.getElementById("placeList").innerHTML = html;
+
+
+// EDIT BUTTON
+
+document.querySelectorAll(".editBtn")
+.forEach(btn=>{
+
+btn.onclick = async ()=>{
+
+let id = btn.dataset.id;
+
+let oldName = btn.dataset.name;
+
+
+let baru = prompt(
+"Tukar nama:",
+oldName
+);
+
+
+if(baru){
+
+await editPlace(id,baru);
+
+showPlaces();
+
+}
+
+};
+
+
+});
+
+
+// DELETE BUTTON
+
+document.querySelectorAll(".deleteBtn")
+.forEach(btn=>{
+
+btn.onclick = async ()=>{
+
+if(confirm("Padam lokasi?")){
+
+await deletePlace(btn.dataset.id);
+
+showPlaces();
+
+}
+
+};
+
+
+});
+
+
+}
+
+async function renamePlace(id,name){
+
+let baru = prompt(
+"Tukar nama:",
+name
+);
+
+
+if(baru){
+
+await editPlace(
+id,
+baru
+);
+
+showPlaces();
+
+}
+
+}
+
+
+
+async function removePlace(id){
+
+if(confirm("Padam lokasi?")){
+
+await deletePlace(id);
+
+showPlaces();
+
+}
+
+}
+
+
+window.saveCurrentLocation = saveCurrentLocation;
+window.renamePlace = renamePlace;
+window.removePlace = removePlace;
+
+
+showPlaces();
 console.log("Route siap",route);
 
 </script>

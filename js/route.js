@@ -1,124 +1,888 @@
-const map = L.map("map").setView([3.1390,101.6869],11);
-L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-  maxZoom: 19,
-  attribution: '&copy; OpenStreetMap contributors'
-}).addTo(map);
+import { db } from "./firebase.js";
 
-const timelineList = document.getElementById("timelineList");
-const params = new URLSearchParams(window.location.search);
-const attendanceID = params.get("id");
+import {
+collection,
+getDocs,
+getDoc,
+doc,
+query,
+orderBy
+} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+
+
+import {
+savePlace,
+loadPlaces,
+editPlace,
+deletePlace
+} from "./savedPlaces.js";
+
+
+
+const map = L.map("map")
+.setView([3.1390,101.6869],12);
+
+
+
+L.tileLayer(
+"https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
+{
+maxZoom:19,
+attribution:"© OpenStreetMap"
+}
+)
+.addTo(map);
+
+
+
+const params =
+new URLSearchParams(
+window.location.search
+);
+
+
+const attendanceID =
+params.get("id");
+
+
 
 if(!attendanceID){
-  timelineList.innerHTML = `<div role="alert">Attendance ID tidak dijumpai</div>`;
-  throw new Error("Attendance ID kosong");
+
+alert("Attendance ID tiada");
+
+throw new Error(
+"Missing attendance ID"
+);
+
 }
 
-let points = []; // {lat,lng,timeMs,place,docRef,raw}
-let totalDistance = 0;
-let movingMarker = null;
-const carIcon = L.divIcon({ html: `<div style="font-size:22px; transform: translate(-50%,-50%);">🚗</div>`, className:'', iconSize:[28,28], iconAnchor:[14,14] });
 
-// Small in-page notification
-function showError(msg){
-  timelineList.innerHTML = `<div role="alert" style="color:#b00020;padding:12px">${msg}</div>`;
+
+let points = [];
+
+let routeLine = null;
+
+let car = null;
+
+let savedLocations = [];
+let visitRecords = [];
+
+
+function formatTime(t){
+
+if(!t) return "-";
+
+
+if(t.toDate){
+
+return t.toDate()
+.toLocaleString("ms-MY");
+
 }
 
-// fetch helpers
-async function fetchWithRetry(url, attempts = 3, delay = 400){
-  for(let i=0;i<attempts;i++){
-    try{
-      const res = await fetch(url);
-      if(!res.ok) throw new Error(`HTTP ${res.status}`);
-      return await res.json();
-    } catch(err){
-      if(i === attempts - 1) throw err;
-      await new Promise(r => setTimeout(r, delay * Math.pow(2, i)));
-    }
-  }
+
+return new Date(t)
+.toLocaleString("ms-MY");
+
 }
 
-// show modal replacing prompt() — returns string or null
-function showPlaceModal(defaultValue = ''){
-  return new Promise(resolve => {
-    const modal = document.getElementById('placeModal');
-    const input = document.getElementById('placeModalInput');
-    const cancel = document.getElementById('placeModalCancel');
-    const save = document.getElementById('placeModalSave');
 
-    function cleanup(result){
-      modal.setAttribute('aria-hidden','true');
-      modal.removeEventListener('keydown', onKey);
-      cancel.removeEventListener('click', onCancel);
-      save.removeEventListener('click', onSave);
-      resolve(result);
-    }
-    function onCancel(){ cleanup(null); }
-    function onSave(){ cleanup(input.value.trim() || null); }
-    function onKey(e){
-      if(e.key === 'Escape') { onCancel(); }
-      if(e.key === 'Enter') { onSave(); }
-    }
 
-    input.value = defaultValue || '';
-    modal.setAttribute('aria-hidden','false');
-    cancel.addEventListener('click', onCancel);
-    save.addEventListener('click', onSave);
-    modal.addEventListener('keydown', onKey);
-    input.focus();
-  });
+
+
+async function loadRoute(){
+
+
+const attendanceSnap =
+await getDoc(
+doc(
+db,
+"attendance",
+attendanceID
+)
+);
+
+
+
+if(!attendanceSnap.exists()){
+
+alert("Attendance tiada");
+
+return;
+
 }
 
-function sanitizePlace(s){
-  if(!s) return null;
-  return String(s).trim().slice(0,200);
+
+
+const trackingQuery =
+query(
+
+collection(
+db,
+"attendance",
+attendanceID,
+"tracking"
+),
+
+orderBy(
+"time",
+"asc"
+)
+
+);
+
+
+
+const snap =
+await getDocs(trackingQuery);
+
+
+
+let html="";
+
+
+
+snap.forEach(item=>{
+
+
+let data=item.data();
+data.place =
+checkSavedLocation(
+data.latitude,
+data.longitude
+);
+
+if(
+data.latitude &&
+data.longitude
+){
+
+
+points.push({
+
+lat:data.latitude,
+
+lng:data.longitude,
+
+timeMs:data.time?.toMillis
+? data.time.toMillis()
+: Date.now()
+
+});
+
+
+
+html += `
+
+<div class="card">
+
+🚗 Tracking Point
+
+<br>
+
+📍 ${data.place || "-"}
+
+<br>
+
+🕒 ${formatTime(data.time)}
+
+</div>
+
+`;
+
 }
 
-function calculateDistance(lat1, lon1, lat2, lon2){
-  if(!Number.isFinite(lat1) || !Number.isFinite(lon1) || !Number.isFinite(lat2) || !Number.isFinite(lon2)) return 0;
-  const R = 6371;
-  const dLat = (lat2-lat1) * Math.PI / 180;
-  const dLon = (lon2-lon1) * Math.PI / 180;
-  const a = Math.sin(dLat/2) * Math.sin(dLat/2) + Math.cos(lat1*Math.PI/180) * Math.cos(lat2*Math.PI/180) * Math.sin(dLon/2) * Math.sin(dLon/2);
-  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+
+});
+
+
+
+document
+.getElementById("timelineList")
+.innerHTML=html;
+
+
+
+calculateVisits();
+
+renderVisits();
+
+drawRoute();
+
 }
 
-function nearestVertex(latlngs, lat, lng){
-  let bestIdx = 0, bestDist = Infinity;
-  for(let i=0;i<latlngs.length;i++){
-    const d = calculateDistance(lat, lng, latlngs[i][0], latlngs[i][1]);
-    if(d < bestDist){ bestDist = d; bestIdx = i; }
-  }
-  return { latlng: latlngs[bestIdx], index: bestIdx, distKm: bestDist };
+
+
+async function drawRoute(){
+
+
+if(points.length < 2){
+
+document
+.getElementById("summary")
+.innerHTML =
+"Tracking tidak cukup";
+
+
+return;
+
 }
 
-// Build timeline markup and attach event delegation for add-visit buttons
-function renderTimeline(){
-  points.sort((a,b)=> a.timeMs - b.timeMs);
-  totalDistance = 0;
-  let html = '';
-  for(let i=0;i<points.length;i++){
-    const p = points[i];
-    if(i>0) totalDistance += calculateDistance(points[i-1].lat, points[i-1].lng, p.lat, p.lng);
-    let timeStr = "-";
-    try{ timeStr = new Date(p.timeMs).toLocaleString("ms-MY"); }catch(e){}
-    const stopAfter = (i < points.length - 1) && ((points[i+1].timeMs - p.timeMs) >= 5*60*1000) && (calculateDistance(p.lat,p.lng, points[i+1].lat, points[i+1].lng) <= 0.05);
-    html += `<div class="timeline-item" id="timeline-item-${i}" tabindex="0">
-      <div><strong>${p.place ? escapeHtml(p.place) : 'Tracking Point'}</strong></div>
-      <div style="color:#666">${timeStr}</div>
-      ${!p.place && stopAfter ? `<div class="add-visit"><button class="btn-outline small add-visit-btn" data-idx="${i}">Add visit</button></div>` : ''}
-    </div>`;
-  }
-  html += `<div class="timeline-item"><div><strong>🚗 Total Distance</strong></div><div style="font-size:18px">${totalDistance.toFixed(2)} KM</div></div>`;
-  timelineList.innerHTML = html;
 
-  // delegated handler
-  timelineList.addEventListener('click', async (ev) => {
-    const btn = ev.target.closest('.add-visit-btn');
-    if(!btn) return;
-    const idx = Number(btn.dataset.idx);
-    await handleAddVisit(idx);
-  });
+
+const coords =
+points
+.map(p=>`${p.lng},${p.lat}`)
+.join(";");
+
+
+
+const url =
+`https://router.project-osrm.org/route/v1/driving/${coords}?overview=full&geometries=geojson`;
+
+
+
+const response =
+await fetch(url);
+
+
+const data =
+await response.json();
+
+
+
+if(!data.routes.length){
+
+return;
+
 }
 
-// minimal html escape
-function escapeHtml(s){ return String(s).replace(/[&<>\
+
+
+const route =
+data.routes[0]
+.geometry
+.coordinates
+.map(c=>[c[1],c[0]]);
+
+
+
+routeLine =
+L.polyline(
+route,
+{
+weight:6
+}
+)
+.addTo(map);
+
+
+
+map.fitBounds(
+routeLine.getBounds()
+);
+
+
+
+document
+.getElementById("summary")
+.innerHTML =
+
+`
+<div class="card">
+
+📏 Jarak:
+${(
+data.routes[0].distance/1000
+).toFixed(2)} KM
+
+<br>
+
+📍 Point:
+${points.length}
+
+</div>
+`;
+
+
+
+animateCar(route);
+
+
+}
+
+
+
+
+
+function animateCar(route){
+
+
+const icon =
+L.divIcon({
+
+html:"🚗",
+
+className:"",
+
+iconSize:[30,30]
+
+});
+
+
+
+car =
+L.marker(
+route[0],
+{
+icon:icon
+}
+)
+.addTo(map);
+
+
+
+let i=0;
+
+
+function move(){
+
+
+if(i>=route.length)
+return;
+
+
+
+car.setLatLng(
+route[i]
+);
+
+
+
+i++;
+
+
+setTimeout(
+move,
+100
+);
+
+
+}
+
+
+move();
+
+}
+
+
+
+
+// ========================
+// SAVE LOCATION
+// ========================
+
+
+document
+.getElementById("saveLocationBtn")
+.onclick = async ()=>{
+
+
+if(points.length==0){
+
+alert(
+"Tiada lokasi"
+);
+
+return;
+
+}
+
+
+
+let last =
+points[
+points.length-1
+];
+
+
+
+let name =
+prompt(
+"Nama tempat:"
+);
+
+
+
+if(!name)
+return;
+
+
+
+await savePlace(
+
+name,
+
+last[0],
+
+last[1]
+
+);
+
+
+
+alert(
+"Lokasi disimpan"
+);
+
+
+
+showPlaces();
+
+
+};
+
+
+
+
+
+async function showPlaces(){
+
+
+let places =
+await loadPlaces();
+
+
+
+let html="";
+
+
+
+places.forEach(p=>{
+
+
+html += `
+
+<div class="card">
+
+📍 ${p.name}
+
+<br>
+
+
+<button class="editBtn"
+data-id="${p.id}"
+data-name="${p.name}">
+
+✏️ Edit
+
+</button>
+
+
+<button class="deleteBtn"
+data-id="${p.id}">
+
+🗑️ Delete
+
+</button>
+
+
+</div>
+
+`;
+
+
+
+});
+
+
+
+document
+.getElementById("placeList")
+.innerHTML=html;
+
+
+
+document
+.querySelectorAll(".editBtn")
+.forEach(btn=>{
+
+
+btn.onclick=async()=>{
+
+
+let name =
+prompt(
+"Tukar nama:",
+btn.dataset.name
+);
+
+
+
+if(name){
+
+await editPlace(
+btn.dataset.id,
+name
+);
+
+
+showPlaces();
+
+}
+
+
+};
+
+
+});
+
+
+
+document
+.querySelectorAll(".deleteBtn")
+.forEach(btn=>{
+
+
+btn.onclick=async()=>{
+
+
+await deletePlace(
+btn.dataset.id
+);
+
+
+showPlaces();
+
+
+};
+
+
+});
+
+
+}
+
+
+// ========================
+// SAVED LOCATION MARKER
+// ========================
+
+
+async function showSavedMarkers(){
+
+
+let places = await loadPlaces();
+savedLocations = places;
+
+
+places.forEach(place=>{
+
+
+if(
+place.latitude &&
+place.longitude
+){
+
+
+
+let marker = L.marker(
+
+[
+place.latitude,
+place.longitude
+]
+
+)
+
+.addTo(map);
+
+
+
+marker.bindPopup(`
+
+📍 <b>${place.name}</b>
+
+<br>
+
+<button onclick="openNavigation(${place.latitude},${place.longitude})">
+
+🚗 NAVIGATE
+
+</button>
+
+`);
+
+
+
+}
+
+
+
+});
+
+
+}
+
+
+
+
+function openNavigation(lat,lng){
+
+
+window.open(
+
+"https://www.google.com/maps/dir/?api=1&destination="
++
+lat
++
+","
++
+lng,
+
+
+"_blank"
+
+);
+
+
+}
+
+
+
+window.openNavigation =
+openNavigation;
+
+function distanceMeter(
+lat1,
+lng1,
+lat2,
+lng2
+){
+
+const R = 6371000;
+
+const dLat =
+(lat2-lat1) *
+Math.PI/180;
+
+const dLng =
+(lng2-lng1) *
+Math.PI/180;
+
+
+const a =
+Math.sin(dLat/2) *
+Math.sin(dLat/2)
+
++
+
+Math.cos(lat1*Math.PI/180) *
+Math.cos(lat2*Math.PI/180)
+
+*
+
+Math.sin(dLng/2) *
+Math.sin(dLng/2);
+
+
+
+return R *
+2 *
+Math.atan2(
+Math.sqrt(a),
+Math.sqrt(1-a)
+);
+
+}
+function checkSavedLocation(
+lat,
+lng
+){
+
+
+for(let place of savedLocations){
+
+
+let distance =
+distanceMeter(
+lat,
+lng,
+place.latitude,
+place.longitude
+);
+
+
+
+if(distance <= place.radius){
+
+return place.name;
+
+}
+
+
+}
+
+
+return null;
+
+}
+function calculateVisits(){
+
+
+let active = null;
+
+
+points.forEach(point=>{
+
+
+let place =
+checkSavedLocation(
+point.lat,
+point.lng
+);
+
+
+
+if(place){
+
+
+if(!active){
+
+active = {
+
+name:place,
+
+start:point.timeMs,
+
+end:point.timeMs
+
+};
+
+
+}else{
+
+
+if(active.name === place){
+
+active.end =
+point.timeMs;
+
+
+}else{
+
+
+visitRecords.push(active);
+
+
+active={
+
+name:place,
+
+start:point.timeMs,
+
+end:point.timeMs
+
+};
+
+
+}
+
+
+}
+
+
+
+}else{
+
+
+if(active){
+
+visitRecords.push(active);
+
+active=null;
+
+}
+
+
+}
+
+
+});
+
+
+
+if(active){
+
+visitRecords.push(active);
+
+}
+
+
+}
+function renderVisits(){
+
+
+let html="";
+
+
+visitRecords.forEach(v=>{
+
+
+let min = Math.round(
+(v.end-v.start)
+/60000
+);
+
+
+
+html += `
+
+<div class="card">
+
+📍 ${v.name}
+
+<br>
+
+🕒 ${new Date(v.start)
+.toLocaleTimeString("ms-MY")}
+
+ -
+
+${new Date(v.end)
+.toLocaleTimeString("ms-MY")}
+
+
+<br>
+
+⏱️ Berhenti:
+${min} minit
+
+</div>
+
+`;
+
+
+
+});
+
+
+
+document
+.getElementById("summary")
+.innerHTML += html;
+
+
+}
+async function start(){
+
+await showSavedMarkers();
+
+await loadRoute();
+
+showPlaces();
+
+}
+
+
+start();

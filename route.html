@@ -15,40 +15,48 @@ href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
 html,body{
 margin:0;
 padding:0;
-height:100%;
+font-family:Arial;
 }
 
 #map{
+height:65vh;
 width:100%;
-height:100vh;
 }
-#timeline{
 
+#timeline{
 padding:15px;
 background:white;
-font-size:14px;
-
 }
 
 .timeline-item{
-
 padding:10px;
-border-left:4px solid #2196f3;
 margin-bottom:10px;
+border-left:5px solid #2196f3;
+background:#f5f5f5;
+border-radius:5px;
+}
 
+.info{
+font-weight:bold;
+font-size:16px;
 }
 
 </style>
 
 </head>
 
+
 <body>
+
 
 <div id="map"></div>
 
+
 <div id="timeline">
 
-<h3>📍 TRIP TIMELINE</h3>
+<h3>🚗 TRIP TIMELINE</h3>
+
+<div id="summary"></div>
 
 <div id="timelineList">
 Loading...
@@ -56,275 +64,531 @@ Loading...
 
 </div>
 
+
+
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
 
 <script type="module">
 
-import { db } from "./js/firebase.js";
+
+import {db} from "./js/firebase.js";
+
 
 import {
+
 collection,
 getDocs,
 getDoc,
 doc,
 query,
 orderBy
-} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
-const map = L.map("map").setView([3.1390,101.6869],11);
+}
+
+from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+
+
+
+
+
+const map=L.map("map")
+.setView([3.139,101.6869],12);
+
+
 
 L.tileLayer(
-"https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
+"https://tile.openstreetmap.org/{z}/{x}/{y}.png",
 {
 maxZoom:19
 }
 ).addTo(map);
 
 
-// Ambil attendance ID daripada URL
 
-const params = new URLSearchParams(window.location.search);
 
-const attendanceID = params.get("id");
 
-console.log("ID:", attendanceID);
+const params=
+new URLSearchParams(window.location.search);
+
+
+const attendanceID=params.get("id");
+
 
 
 if(!attendanceID){
 
-    alert("Attendance ID tidak dijumpai");
-    throw new Error("Attendance ID kosong");
+alert("ID attendance tiada");
+throw Error("Missing ID");
 
 }
 
 
-const attendanceDoc = await getDoc(
-    doc(db,"attendance",attendanceID)
+
+
+
+function formatTime(t){
+
+if(!t)
+return "-";
+
+
+if(t.toDate)
+return t.toDate()
+.toLocaleString("ms-MY");
+
+
+return new Date(t)
+.toLocaleString("ms-MY");
+
+}
+
+
+
+
+
+// Ambil attendance
+
+
+const attendanceSnap=
+await getDoc(
+doc(db,"attendance",attendanceID)
 );
 
 
-const attendanceData = attendanceDoc.data();
+if(!attendanceSnap.exists()){
 
-console.log("Attendance:", attendanceData);
-const trackingQuery = query(
-    collection(
-        db,
-        "attendance",
-        attendanceID,
-        "tracking"
-    ),
-    orderBy("time","asc")
+alert("Attendance tidak wujud");
+throw Error();
+
+}
+
+
+
+const attendanceData=
+attendanceSnap.data();
+
+
+
+
+
+// Ambil tracking
+
+
+const trackingQuery=query(
+
+collection(
+db,
+"attendance",
+attendanceID,
+"tracking"
+),
+
+orderBy(
+"time",
+"asc"
+)
+
 );
 
-const trackingSnap = await getDocs(trackingQuery);
-
-let routePoints = [];
-let timelineHTML = "";
-let totalDistance = 0;
-function calculateDistance(lat1, lon1, lat2, lon2){
-
-    let R = 6371; // KM
-
-    let dLat = (lat2-lat1) * Math.PI / 180;
-    let dLon = (lon2-lon1) * Math.PI / 180;
-
-    let a =
-    Math.sin(dLat/2) * Math.sin(dLat/2) +
-    Math.cos(lat1*Math.PI/180) *
-    Math.cos(lat2*Math.PI/180) *
-    Math.sin(dLon/2) *
-    Math.sin(dLon/2);
-
-    let c = 2 * Math.atan2(
-        Math.sqrt(a),
-        Math.sqrt(1-a)
-    );
-
-    return R * c;
-
-}
-trackingSnap.forEach((doc)=>{
-
-const data = doc.data();
-
-console.log("TRACKING DATA:", data);
-
-let currentPoint = [
-    data.latitude,
-    data.longitude
-];
 
 
-if(routePoints.length > 0){
+const trackingSnap=
+await getDocs(trackingQuery);
 
-    let lastPoint = routePoints[routePoints.length - 1];
 
-    totalDistance += calculateDistance(
-        lastPoint[0],
-        lastPoint[1],
-        currentPoint[0],
-        currentPoint[1]
-    );
+
+let points=[];
+
+let counter=0;
+
+let timeline="";
+
+
+
+trackingSnap.forEach((item)=>{
+
+
+const data=item.data();
+
+
+
+if(
+data.latitude &&
+data.longitude
+){
+
+
+if(counter % 5 === 0){
+
+points.push([
+data.latitude,
+data.longitude
+]);
 
 }
 
-
-routePoints.push(currentPoint);
-
-
-let time = "-";
-
-if(data.time){
-
-    if(data.time.toDate){
-
-        time = data.time.toDate()
-        .toLocaleString("ms-MY");
-
-    }else{
-
-        time = new Date(data.time)
-        .toLocaleString("ms-MY");
-
-    }
-
-}
+counter++;
 
 
-timelineHTML += `
+timeline +=`
 
 <div class="timeline-item">
 
-🔵 Tracking Point<br>
+🚗 Tracking Point<br>
 
 📍 ${data.place || "-"}<br>
 
-🕒 ${time}
-
-</div>
-
-`;
-
-});
-
-
-document.getElementById("timelineList").innerHTML += `
-
-<div class="timeline-item">
-
-🚗 Total Distance<br>
-
-${totalDistance.toFixed(2)} KM
+🕒 ${formatTime(data.time)}
 
 </div>
 
 `;
 
 
-if(routePoints.length > 0){
-
-    // Lukis garisan perjalanan
-
-    const polyline = L.polyline(
-        routePoints,
-        {
-            color:"blue",
-            weight:5
-        }
-    ).addTo(map);
+}
 
 
-    // Zoom ikut laluan
-
-    map.fitBounds(
-        polyline.getBounds()
-    );
-
-
-    // Marker setiap tracking point
-
-    routePoints.forEach((point,index)=>{
-
-    let data = trackingSnap.docs[index].data();
-
-    let time = "-";
-
-    if(data.time){
-
-        time = data.time.toDate()
-        .toLocaleString("ms-MY");
-
-    }
-
-
-    L.marker(point)
-    .addTo(map)
-    .bindPopup(
-        "🚗 Tracking Point " + (index + 1) +
-        "<br>📍 " + (data.place || "-") +
-        "<br>🕒 " + time
-    );
 
 });
-    // MARKER CHECK IN
+
+
+
+document
+.getElementById("timelineList")
+.innerHTML=timeline;
+
+
+
+
+if(points.length<2){
+
+alert("Tracking tidak cukup untuk route");
+
+throw Error();
+
+}
+// ===============================
+// OSRM ROUTING
+// ===============================
+
+
+const coordinateString = points
+.map(p => `${p[1]},${p[0]}`)
+.join(";");
+
+
+
+const osrmURL =
+`https://router.project-osrm.org/route/v1/driving/${coordinateString}?overview=full&geometries=geojson`;
+
+
+
+const osrmResponse =
+await fetch(osrmURL);
+
+
+
+const osrmData =
+await osrmResponse.json();
+
+
+
+let route=[];
+
+let distanceKM=0;
+
+
+
+if(osrmData.routes.length){
+
+
+distanceKM =
+(osrmData.routes[0].distance / 1000);
+
+
+
+route =
+osrmData.routes[0]
+.geometry
+.coordinates
+.map(c=>[c[1],c[0]]);
+
+
+
+}
+
+
+
+
+
+// ===============================
+// PAPAR INFO
+// ===============================
+
+
+document
+.getElementById("summary")
+.innerHTML=`
+
+<div class="timeline-item info">
+
+📏 Jarak:
+${distanceKM.toFixed(2)} KM
+
+<br>
+
+📍 Tracking Point:
+${points.length}
+
+</div>
+
+`;
+
+
+
+
+
+// ===============================
+// LUKIS ROUTE
+// ===============================
+
+
+const polyline =
+L.polyline(
+route,
+{
+color:"blue",
+weight:6
+}
+)
+.addTo(map);
+
+
+
+map.fitBounds(
+polyline.getBounds()
+);
+
+
+
+
+
+// ===============================
+// MARKER CHECK IN
+// ===============================
+
 
 if(attendanceData.checkIn){
 
-    let checkInTime = "-";
 
-    if(attendanceData.checkIn.toDate){
+L.marker(points[0],{
 
-        checkInTime = attendanceData.checkIn
-        .toDate()
-        .toLocaleString("ms-MY");
+icon:
+L.icon({
 
-    }
+iconUrl:
+"https://maps.google.com/mapfiles/ms/icons/green-dot.png",
 
+iconSize:[32,32]
 
-    L.marker(routePoints[0])
-    .addTo(map)
-    .bindPopup(
-        "🟢 CHECK IN<br>" +
-        "📍 " + (attendanceData.location || "-") +
-        "<br>🕒 " + checkInTime
-    );
+})
+
+})
+
+.addTo(map)
+
+.bindPopup(
+
+`
+🟢 CHECK IN
+<br>
+📍 ${attendanceData.location || "-"}
+<br>
+🕒 ${formatTime(attendanceData.checkIn)}
+
+`
+
+);
+
 
 }
 
 
+
+
+
+
+// ===============================
 // MARKER CHECK OUT
+// ===============================
+
 
 if(attendanceData.checkOut){
 
-    let checkOutTime = "-";
 
-    if(attendanceData.checkOut.toDate){
+L.marker(
+points[points.length-1],
+{
 
-        checkOutTime = attendanceData.checkOut
-        .toDate()
-        .toLocaleString("ms-MY");
+icon:
+L.icon({
 
-    }
+iconUrl:
+"https://maps.google.com/mapfiles/ms/icons/red-dot.png",
 
+iconSize:[32,32]
 
-    L.marker(routePoints[routePoints.length-1])
-    .addTo(map)
-    .bindPopup(
-        "🔴 CHECK OUT<br>" +
-        "📍 " + (attendanceData.checkoutLocation || "-") +
-        "<br>🕒 " + checkOutTime
-    );
+})
 
 }
 
-}else{
+)
 
-    alert("Tiada data tracking");
+.addTo(map)
+
+.bindPopup(
+
+`
+🔴 CHECK OUT
+<br>
+📍 ${attendanceData.checkoutLocation || "-"}
+<br>
+🕒 ${formatTime(attendanceData.checkOut)}
+
+`
+
+);
+
 
 }
-console.log(routePoints);
+
+
+
+
+
+
+// ===============================
+// MARKER TRACKING (setiap 5 point)
+// ===============================
+
+
+points.forEach((p,index)=>{
+
+
+if(index % 5 === 0){
+
+
+L.circleMarker(
+p,
+{
+
+radius:5
+
+}
+
+)
+
+.addTo(map)
+
+.bindPopup(
+`
+🚗 Tracking
+<br>
+Point ${index+1}
+`
+);
+
+
+}
+
+
+});
+
+
+
+
+
+
+// ===============================
+// ANIMASI KERETA
+// ===============================
+
+
+const carIcon =
+L.icon({
+
+iconUrl:
+"https://cdn-icons-png.flaticon.com/512/744/744465.png",
+
+iconSize:
+[40,40]
+
+});
+
+
+
+const car =
+L.marker(
+route[0],
+{
+icon:carIcon
+}
+
+)
+
+.addTo(map);
+
+
+
+
+
+let carIndex=0;
+
+
+
+function moveCar(){
+
+
+if(carIndex >= route.length)
+return;
+
+
+
+car.setLatLng(
+route[carIndex]
+);
+
+
+
+carIndex++;
+
+
+
+setTimeout(
+moveCar,
+80
+);
+
+
+}
+
+
+
+moveCar();
+
+
+
+
+
+console.log(
+"Route siap",
+route
+);
+
 
 </script>
+
 
 </body>
 

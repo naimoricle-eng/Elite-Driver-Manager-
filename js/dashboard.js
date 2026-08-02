@@ -1328,6 +1328,16 @@ window.open(
 
 };
 
+// ===============================
+// GO TO SAVED PLACES
+// ===============================
+
+document.getElementById("btn-places")
+.onclick=function(){
+
+window.location.href="saved-location.html";
+
+};
 
 
 // ===============================

@@ -775,3 +775,33 @@ if (driverStatusEl) {
     }
   });
 }
+const btnMap = document.getElementById("btn-map");
+
+if(btnMap){
+
+btnMap.onclick = () => {
+
+    if(navigator.geolocation){
+
+        navigator.geolocation.getCurrentPosition((pos)=>{
+
+            let lat = pos.coords.latitude;
+            let lng = pos.coords.longitude;
+
+            let url =
+            `https://www.google.com/maps?q=${lat},${lng}`;
+
+            window.open(url,"_blank");
+
+        });
+
+    }else{
+
+        window.open(
+        "https://maps.google.com",
+        "_blank"
+        );
+
+    }
+
+};

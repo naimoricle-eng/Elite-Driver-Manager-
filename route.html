@@ -71,155 +71,78 @@ Loading...
 
 <script type="module">
 
-
-import {db} from "./js/firebase.js";
-
+import { db } from "./js/firebase.js";
 
 import {
+  collection,
+  getDocs,
+  getDoc,
+  doc,
+  query,
+  orderBy
+} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
-collection,
-getDocs,
-getDoc,
-doc,
-query,
-orderBy
-
-}
-
-from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-
-
-
-
-
-const map=L.map("map")
-.setView([3.139,101.6869],12);
-
-
+const map = L.map("map").setView([3.139,101.6869],12);
 
 L.tileLayer(
-"https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png",
-{
-maxZoom:19,
-attribution:
-'© OpenStreetMap © CARTO'
-}
+  "https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png",
+  {
+    maxZoom:19,
+    attribution:'© OpenStreetMap © CARTO'
+  }
 ).addTo(map);
 
-
-
-
-
-const params=
-new URLSearchParams(window.location.search);
-
-
-const attendanceID=params.get("id");
-
-
+const params = new URLSearchParams(window.location.search);
+const attendanceID = params.get("id");
 
 if(!attendanceID){
-
-alert("ID attendance tiada");
-throw Error("Missing ID");
-
+  alert("ID attendance tiada");
+  throw new Error("Missing ID");
 }
-
-
-
-
 
 function formatTime(t){
 
-if(!t)
-return "-";
+  if(!t) return "-";
 
+  if(t.toDate){
+    return t.toDate().toLocaleString("ms-MY");
+  }
 
-if(t.toDate)
-return t.toDate()
-.toLocaleString("ms-MY");
-
-
-return new Date(t)
-.toLocaleString("ms-MY");
-
+  return new Date(t).toLocaleString("ms-MY");
 }
 
-
-
-
-
-// Ambil attendance
-
-
-const attendanceSnap=
+const attendanceSnap =
 await getDoc(
-doc(db,"attendance",attendanceID)
+  doc(db,"attendance",attendanceID)
 );
-
 
 if(!attendanceSnap.exists()){
-
-alert("Attendance tidak wujud");
-throw Error();
-
+  alert("Attendance tidak wujud");
+  throw new Error("Attendance tidak wujud");
 }
 
+const attendanceData = attendanceSnap.data();
 
-
-const attendanceData=
-attendanceSnap.data();
-
-
-
-
-
-// Ambil tracking
-
-
-const trackingQuery=query(
-
-collection(
-db,
-"attendance",
-attendanceID,
-"tracking"
-),
-
-orderBy(
-"time",
-"asc"
-)
-
+const trackingQuery = query(
+  collection(
+    db,
+    "attendance",
+    attendanceID,
+    "tracking"
+  ),
+  orderBy("time","asc")
 );
 
+const trackingSnap = await getDocs(trackingQuery);
 
-
-const trackingSnap=
-await getDocs(trackingQuery);
-
-
-
-let points=[];
-
-let counter=0;
-
-let timeline="";
-
-
-
+let points = [];
+let counter = 0;
+let timeline = "";
 trackingSnap.forEach((item)=>{
 
+const data = item.data();
 
-const data=item.data();
-
-
-
-if(
-data.latitude &&
-data.longitude
-){
-
+if(data.latitude && data.longitude){
 
 if(counter % 5 === 0){
 
@@ -232,14 +155,15 @@ data.longitude
 
 counter++;
 
-
-timeline +=`
+timeline += `
 
 <div class="timeline-item">
 
 🚗 Tracking Point<br>
 
-📍 ${data.place || "-"}<br>
+📍 ${data.place || "-"}
+
+<br>
 
 🕒 ${formatTime(data.time)}
 
@@ -247,91 +171,51 @@ timeline +=`
 
 `;
 
-
 }
-
-
 
 });
 
-
-
 document
 .getElementById("timelineList")
-.innerHTML=timeline;
+.innerHTML = timeline;
 
-
-
-
-if(points.length<2){
+if(points.length < 2){
 
 alert("Tracking tidak cukup untuk route");
 
-throw Error();
+throw new Error("Tracking tidak cukup");
 
 }
-// ===============================
-// OSRM ROUTING
-// ===============================
-
 
 const coordinateString = points
 .map(p => `${p[1]},${p[0]}`)
 .join(";");
 
-
-
 const osrmURL =
 `https://router.project-osrm.org/route/v1/driving/${coordinateString}?overview=full&geometries=geojson`;
-
-
 
 const osrmResponse =
 await fetch(osrmURL);
 
-
-
 const osrmData =
 await osrmResponse.json();
 
+let route = [];
+let distanceKM = 0;
 
-
-let route=[];
-
-let distanceKM=0;
-
-
-
-if(osrmData.routes.length){
-
+if(osrmData.routes && osrmData.routes.length > 0){
 
 distanceKM =
-(osrmData.routes[0].distance / 1000);
-
-
+osrmData.routes[0].distance / 1000;
 
 route =
 osrmData.routes[0]
 .geometry
 .coordinates
-.map(c=>[c[1],c[0]]);
-
-
+.map(c => [c[1], c[0]]);
 
 }
-
-
-
-
-
-// ===============================
-// PAPAR INFO
-// ===============================
-
-
-document
-.getElementById("summary")
-.innerHTML=`
+document.getElementById("summary").innerHTML = `
 
 <div class="timeline-item info">
 
@@ -347,739 +231,101 @@ ${points.length}
 
 `;
 
-
-
-
-
-// ===============================
-// LUKIS ROUTE
-// ===============================
-
-
-const polyline =
-L.polyline(
-route,
-{
+const polyline = L.polyline(route,{
 color:"blue",
 weight:6
-}
-)
-.addTo(map);
+}).addTo(map);
+
+map.fitBounds(polyline.getBounds());
 
 
-
-map.fitBounds(
-polyline.getBounds()
-);
-
-
-
-
-
-// ===============================
-// MARKER CHECK IN
-// ===============================
-
-
+// CHECK IN
 if(attendanceData.checkIn){
 
-
 L.marker(points[0],{
-
-icon:
-L.icon({
-
-iconUrl:
-"https://maps.google.com/mapfiles/ms/icons/green-dot.png",
-
+icon:L.icon({
+iconUrl:"https://maps.google.com/mapfiles/ms/icons/green-dot.png",
 iconSize:[32,32]
-
 })
-
 })
-
 .addTo(map)
-
-.bindPopup(
-
-`
+.bindPopup(`
 🟢 CHECK IN
 <br>
 📍 ${attendanceData.location || "-"}
 <br>
 🕒 ${formatTime(attendanceData.checkIn)}
-
-`
-
-);
-
+`);
 
 }
 
 
-
-
-
-
-// ===============================
-// MARKER CHECK OUT
-// ===============================
-
-
+// CHECK OUT
 if(attendanceData.checkOut){
 
-
-L.marker(
-points[points.length-1],
-{
-
-icon:
-L.icon({
-
-iconUrl:
-"https://maps.google.com/mapfiles/ms/icons/red-dot.png",
-
+L.marker(points[points.length-1],{
+icon:L.icon({
+iconUrl:"https://maps.google.com/mapfiles/ms/icons/red-dot.png",
 iconSize:[32,32]
-
 })
-
-}
-
-)
-
+})
 .addTo(map)
-
-.bindPopup(
-
-`
+.bindPopup(`
 🔴 CHECK OUT
 <br>
 📍 ${attendanceData.checkoutLocation || "-"}
 <br>
 🕒 ${formatTime(attendanceData.checkOut)}
-
-`
-
-);
-
+`);
 
 }
 
 
-
-
-
-
-// ===============================
-// MARKER TRACKING (setiap 5 point)
-// ===============================
-
-
+// TRACKING MARKER
 points.forEach((p,index)=>{
 
-
-if(index % 5 === 0){
-
-
-L.circleMarker(
-p,
-{
-
-radius:5
-
-}
-
-)
-
+L.circleMarker(p,{
+radius:4
+})
 .addTo(map)
-
-.bindPopup(
-`
-🚗 Tracking
-<br>
-Point ${index+1}
-`
-);
-
-
-}
-
+.bindPopup(`
+🚗 Point ${index+1}
+`);
 
 });
 
 
-
-
-
-
-// ===============================
 // ANIMASI KERETA
-// ===============================
-
-
-const carIcon =
-L.icon({
-
-iconUrl:
-"https://cdn-icons-png.flaticon.com/512/744/744465.png",
-
-iconSize:
-[40,40]
-
+const carIcon = L.icon({
+iconUrl:"https://cdn-icons-png.flaticon.com/512/744/744465.png",
+iconSize:[40,40]
 });
 
-
-
-const car =
-L.marker(
-route[0],
-{
+const car = L.marker(route[0],{
 icon:carIcon
-}
+}).addTo(map);
 
-)
-
-.addTo(map);
-
-
-
-
-
-let carIndex=0;
-
-
+let carIndex = 0;
 
 function moveCar(){
 
-
-if(carIndex >= route.length)
+if(carIndex >= route.length){
 return;
+}
 
-
-
-car.setLatLng(
-route[carIndex]
-);
-
-
+car.setLatLng(route[carIndex]);
 
 carIndex++;
 
-
-
-setTimeout(
-moveCar,
-80
-);
-
+setTimeout(moveCar,80);
 
 }
-
-
 
 moveCar();
 
-
-
-
-
-console.log(
-"Route siap",
-route
-);
-
+console.log("Route siap",route);
 
 </script>
-
-
-</body>
-
-</html>
-
-
-
-
-const params=
-new URLSearchParams(window.location.search);
-
-
-const attendanceID=params.get("id");
-
-
-
-if(!attendanceID){
-
-alert("ID attendance tiada");
-throw Error("Missing ID");
-
-}
-
-
-
-
-
-function formatTime(t){
-
-if(!t)
-return "-";
-
-
-if(t.toDate)
-return t.toDate()
-.toLocaleString("ms-MY");
-
-
-return new Date(t)
-.toLocaleString("ms-MY");
-
-}
-
-
-
-
-
-// Ambil attendance
-
-
-const attendanceSnap=
-await getDoc(
-doc(db,"attendance",attendanceID)
-);
-
-
-if(!attendanceSnap.exists()){
-
-alert("Attendance tidak wujud");
-throw Error();
-
-}
-
-
-
-const attendanceData=
-attendanceSnap.data();
-
-
-
-
-
-// Ambil tracking
-
-
-const trackingQuery=query(
-
-collection(
-db,
-"attendance",
-attendanceID,
-"tracking"
-),
-
-orderBy(
-"time",
-"asc"
-)
-
-);
-
-
-
-const trackingSnap=
-await getDocs(trackingQuery);
-
-
-
-let points=[];
-
-let counter=0;
-
-let timeline="";
-
-
-
-trackingSnap.forEach((item)=>{
-
-
-const data=item.data();
-
-
-
-if(
-data.latitude &&
-data.longitude
-){
-
-
-if(counter % 5 === 0){
-
-points.push([
-data.latitude,
-data.longitude
-]);
-
-}
-
-counter++;
-
-
-timeline +=`
-
-<div class="timeline-item">
-
-🚗 Tracking Point<br>
-
-📍 ${data.place || "-"}<br>
-
-🕒 ${formatTime(data.time)}
-
-</div>
-
-`;
-
-
-}
-
-
-
-});
-
-
-
-document
-.getElementById("timelineList")
-.innerHTML=timeline;
-
-
-
-
-if(points.length<2){
-
-alert("Tracking tidak cukup untuk route");
-
-throw Error();
-
-}
-// ===============================
-// OSRM ROUTING
-// ===============================
-
-
-const coordinateString = points
-.map(p => `${p[1]},${p[0]}`)
-.join(";");
-
-
-
-const osrmURL =
-`https://router.project-osrm.org/route/v1/driving/${coordinateString}?overview=full&geometries=geojson`;
-
-
-
-const osrmResponse =
-await fetch(osrmURL);
-
-
-
-const osrmData =
-await osrmResponse.json();
-
-
-
-let route=[];
-
-let distanceKM=0;
-
-
-
-if(osrmData.routes.length){
-
-
-distanceKM =
-(osrmData.routes[0].distance / 1000);
-
-
-
-route =
-osrmData.routes[0]
-.geometry
-.coordinates
-.map(c=>[c[1],c[0]]);
-
-
-
-}
-
-
-
-
-
-// ===============================
-// PAPAR INFO
-// ===============================
-
-
-document
-.getElementById("summary")
-.innerHTML=`
-
-<div class="timeline-item info">
-
-📏 Jarak:
-${distanceKM.toFixed(2)} KM
-
-<br>
-
-📍 Tracking Point:
-${points.length}
-
-</div>
-
-`;
-
-
-
-
-
-// ===============================
-// LUKIS ROUTE
-// ===============================
-
-
-const polyline =
-L.polyline(
-route,
-{
-color:"blue",
-weight:6
-}
-)
-.addTo(map);
-
-
-
-map.fitBounds(
-polyline.getBounds()
-);
-
-
-
-
-
-// ===============================
-// MARKER CHECK IN
-// ===============================
-
-
-if(attendanceData.checkIn){
-
-
-L.marker(points[0],{
-
-icon:
-L.icon({
-
-iconUrl:
-"https://maps.google.com/mapfiles/ms/icons/green-dot.png",
-
-iconSize:[32,32]
-
-})
-
-})
-
-.addTo(map)
-
-.bindPopup(
-
-`
-🟢 CHECK IN
-<br>
-📍 ${attendanceData.location || "-"}
-<br>
-🕒 ${formatTime(attendanceData.checkIn)}
-
-`
-
-);
-
-
-}
-
-
-
-
-
-
-// ===============================
-// MARKER CHECK OUT
-// ===============================
-
-
-if(attendanceData.checkOut){
-
-
-L.marker(
-points[points.length-1],
-{
-
-icon:
-L.icon({
-
-iconUrl:
-"https://maps.google.com/mapfiles/ms/icons/red-dot.png",
-
-iconSize:[32,32]
-
-})
-
-}
-
-)
-
-.addTo(map)
-
-.bindPopup(
-
-`
-🔴 CHECK OUT
-<br>
-📍 ${attendanceData.checkoutLocation || "-"}
-<br>
-🕒 ${formatTime(attendanceData.checkOut)}
-
-`
-
-);
-
-
-}
-
-
-
-
-
-
-// ===============================
-// MARKER TRACKING (setiap 5 point)
-// ===============================
-
-
-points.forEach((p,index)=>{
-
-
-if(index % 5 === 0){
-
-
-L.circleMarker(
-p,
-{
-
-radius:5
-
-}
-
-)
-
-.addTo(map)
-
-.bindPopup(
-`
-🚗 Tracking
-<br>
-Point ${index+1}
-`
-);
-
-
-}
-
-
-});
-
-
-
-
-
-
-// ===============================
-// ANIMASI KERETA
-// ===============================
-
-
-const carIcon =
-L.icon({
-
-iconUrl:
-"https://cdn-icons-png.flaticon.com/512/744/744465.png",
-
-iconSize:
-[40,40]
-
-});
-
-
-
-const car =
-L.marker(
-route[0],
-{
-icon:carIcon
-}
-
-)
-
-.addTo(map);
-
-
-
-
-
-let carIndex=0;
-
-
-
-function moveCar(){
-
-
-if(carIndex >= route.length)
-return;
-
-
-
-car.setLatLng(
-route[carIndex]
-);
-
-
-
-carIndex++;
-
-
-
-setTimeout(
-moveCar,
-80
-);
-
-
-}
-
-
-
-moveCar();
-
-
-
-
-
-console.log(
-"Route siap",
-route
-);
-
-
-</script>
-
 
 </body>
 

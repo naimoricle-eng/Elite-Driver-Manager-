@@ -2,6 +2,7 @@
 <html lang="ms">
 
 <head>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <meta name="description" content="Elite Driver Manager — check in/out, track location and attendance." />
@@ -107,6 +108,33 @@
     @media (max-width:480px) {
       .slide-track { width: 260px }
     }
+    #map{
+  width:100%;
+  height:350px;
+  margin-top:15px;
+  border-radius:12px;
+}
+#searchBox{
+  width:100%;
+  padding:12px;
+  margin-top:15px;
+  border-radius:8px;
+  border:1px solid #ccc;
+  font-size:16px;
+}
+#map{
+height:350px;
+width:100%;
+border-radius:12px;
+margin-top:10px;
+}
+
+#searchBox{
+width:100%;
+padding:12px;
+font-size:16px;
+border-radius:8px;
+}
   </style>
 </head>
 
@@ -200,6 +228,13 @@
       capture="user"
       style="display:none"
       aria-hidden="true" />
+      <section class="map-card">
+
+<input id="searchBox" type="text" placeholder="Taip tempat...">
+
+<div id="map"></div>
+
+</section>
 
     <section class="attendance-card" aria-labelledby="attendance-title">
       <h2 id="attendance-title">📅 ATTENDANCE TODAY</h2>
@@ -250,17 +285,24 @@
         <p id="dashClaim">RM 0</p>
       </div>
     </aside>
+    
   </main>
-
   <footer>
     <p class="sr-only">Elite Driver Manager footer</p>
   </footer>
 
   <!-- Keep dashboard.js as module (modern imports). Defer non-module scripts. -->
-  <script type="module" src="js/dashboard.js"></script>
-  <script src="js/language.js" defer></script>
-  <script src="js/menu.js" defer></script>
-  <script src="js/theme.js" defer></script>
+  <!-- LEAFLET MAP -->
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+<!-- APP JS -->
+<script type="module" src="js/dashboard.js"></script>
+
+<script src="js/language.js" defer></script>
+<script src="js/menu.js" defer></script>
+<script src="js/theme.js" defer></script>
 
   <noscript>
     <div role="status">

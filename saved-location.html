@@ -3,16 +3,59 @@
 
 <head>
 
-<title>Saved Location</title>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
 
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Saved Location - Elite Driver Manager</title>
 
-<link rel="stylesheet" href="./css/style.css">
+<link rel="stylesheet" href="css/style.css">
+
+<style>
+
+.container{
+padding:20px;
+}
+
+.card{
+background:white;
+padding:15px;
+margin-bottom:15px;
+border-radius:12px;
+}
+
+.input{
+width:100%;
+padding:12px;
+font-size:16px;
+margin-bottom:10px;
+}
+
+.btn{
+padding:12px;
+border:0;
+border-radius:8px;
+background:#0a74da;
+color:white;
+margin-top:5px;
+}
+
+.btn-danger{
+padding:12px;
+border:0;
+border-radius:8px;
+background:#d9534f;
+color:white;
+}
+
+</style>
 
 </head>
 
 
 <body>
+
+
+<div id="menu"></div>
 
 
 <div class="container">
@@ -23,34 +66,38 @@
 </h2>
 
 
-
 <div class="card">
 
 
-<input 
+<input
 id="placeName"
 class="input"
-placeholder="Nama tempat contoh: Rumah Boss">
+placeholder="Contoh: Rumah Boss">
 
 
-<button 
-class="btn"
-id="saveBtn">
+<button
+id="saveBtn"
+class="btn">
 
-⭐ Simpan Lokasi Sekarang
+⭐ SIMPAN LOKASI SEKARANG
 
 </button>
+
+
+<p id="gpsStatus">
+
+📡 Mencari GPS...
+
+</p>
 
 
 </div>
 
 
 
-
 <h3>
 Lokasi Disimpan
 </h3>
-
 
 
 <div id="list">
@@ -60,9 +107,7 @@ Loading...
 </div>
 
 
-
 </div>
-
 
 
 
@@ -87,9 +132,11 @@ let currentLon=null;
 
 
 
-// Ambil GPS semasa
+// =====================
+// GET GPS
+// =====================
 
-navigator.geolocation.getCurrentPosition(
+navigator.geolocation.watchPosition(
 
 (position)=>{
 
@@ -102,39 +149,54 @@ currentLon =
 position.coords.longitude;
 
 
-console.log(
-"GPS:",
-currentLat,
-currentLon
-);
+
+document.getElementById(
+"gpsStatus"
+).innerHTML =
+
+"✅ GPS Ready";
 
 
 },
 
-(error)=>{
 
-alert(
-"GPS tidak dibenarkan"
-);
+()=>{
+
+
+document.getElementById(
+"gpsStatus"
+).innerHTML =
+
+"❌ GPS gagal";
+
+
+},
+
+
+{
+
+enableHighAccuracy:true
 
 }
 
+
 );
 
 
 
-
-// Simpan lokasi
+// =====================
+// SAVE
+// =====================
 
 document
 .getElementById("saveBtn")
 .onclick=async()=>{
 
 
-const name =
+let name =
 document
 .getElementById("placeName")
-.value;
+.value.trim();
 
 
 
@@ -183,21 +245,41 @@ document
 loadList();
 
 
+
+alert(
+"✅ Lokasi disimpan"
+);
+
+
+
 };
 
 
 
-
-
+// =====================
+// LOAD LIST
+// =====================
 
 async function loadList(){
 
 
-const places =
+let places =
 await loadPlaces();
 
 
+
 let html="";
+
+
+
+if(places.length===0){
+
+
+html =
+"Tiada lokasi disimpan";
+
+
+}
 
 
 
@@ -206,14 +288,11 @@ places.forEach((p)=>{
 
 html += `
 
-
 <div class="card">
 
 
 <h3>
-
 📍 ${p.name}
-
 </h3>
 
 
@@ -231,14 +310,14 @@ ${p.longitude}
 
 
 
-<button 
+<button
 class="btn"
-onclick="editLocation(
-'${p.id}',
-'${p.name}'
+onclick="openMap(
+${p.latitude},
+${p.longitude}
 )">
 
-✏️ Edit
+🗺️ BUKA MAP
 
 </button>
 
@@ -246,13 +325,25 @@ onclick="editLocation(
 <br><br>
 
 
-<button 
+<button
+class="btn"
+onclick="editLocation(
+'${p.id}',
+'${p.name}'
+)">
+
+✏️ EDIT
+
+</button>
+
+
+<button
 class="btn-danger"
 onclick="deleteLocation(
 '${p.id}'
 )">
 
-🗑 Delete
+🗑️ DELETE
 
 </button>
 
@@ -260,13 +351,9 @@ onclick="deleteLocation(
 
 </div>
 
-
 `;
 
-
-
 });
-
 
 
 document
@@ -275,11 +362,35 @@ document
 html;
 
 
-
 }
 
 
 
+
+// =====================
+// OPEN GOOGLE MAP
+// =====================
+
+window.openMap =
+function(lat,lon){
+
+
+window.open(
+
+"https://www.google.com/maps?q="+lat+","+lon,
+
+"_blank"
+
+);
+
+
+};
+
+
+
+// =====================
+// EDIT
+// =====================
 
 window.editLocation =
 async function(id,name){
@@ -295,7 +406,6 @@ name
 
 if(newName){
 
-
 await editPlace(
 id,
 newName
@@ -304,7 +414,6 @@ newName
 
 loadList();
 
-
 }
 
 
@@ -312,14 +421,16 @@ loadList();
 
 
 
-
+// =====================
+// DELETE
+// =====================
 
 window.deleteLocation =
 async function(id){
 
 
 if(confirm(
-"Padam lokasi ini?"
+"Padam lokasi?"
 )){
 
 
@@ -331,18 +442,17 @@ loadList();
 
 }
 
-
 };
-
 
 
 
 loadList();
 
 
-
 </script>
 
+
+<script src="js/menu.js"></script>
 
 
 </body>

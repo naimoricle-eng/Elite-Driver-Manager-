@@ -1,0 +1,350 @@
+<!DOCTYPE html>
+<html lang="ms">
+
+<head>
+
+<title>Saved Location</title>
+
+<meta name="viewport" content="width=device-width, initial-scale=1">
+
+<link rel="stylesheet" href="./css/style.css">
+
+</head>
+
+
+<body>
+
+
+<div class="container">
+
+
+<h2>
+📍 Saved Location
+</h2>
+
+
+
+<div class="card">
+
+
+<input 
+id="placeName"
+class="input"
+placeholder="Nama tempat contoh: Rumah Boss">
+
+
+<button 
+class="btn"
+id="saveBtn">
+
+⭐ Simpan Lokasi Sekarang
+
+</button>
+
+
+</div>
+
+
+
+
+<h3>
+Lokasi Disimpan
+</h3>
+
+
+
+<div id="list">
+
+Loading...
+
+</div>
+
+
+
+</div>
+
+
+
+
+<script type="module">
+
+
+import {
+
+savePlace,
+loadPlaces,
+deletePlace,
+editPlace
+
+}
+
+from "./js/savedPlaces.js";
+
+
+
+let currentLat=null;
+let currentLon=null;
+
+
+
+// Ambil GPS semasa
+
+navigator.geolocation.getCurrentPosition(
+
+(position)=>{
+
+
+currentLat =
+position.coords.latitude;
+
+
+currentLon =
+position.coords.longitude;
+
+
+console.log(
+"GPS:",
+currentLat,
+currentLon
+);
+
+
+},
+
+(error)=>{
+
+alert(
+"GPS tidak dibenarkan"
+);
+
+}
+
+);
+
+
+
+
+// Simpan lokasi
+
+document
+.getElementById("saveBtn")
+.onclick=async()=>{
+
+
+const name =
+document
+.getElementById("placeName")
+.value;
+
+
+
+if(!name){
+
+alert(
+"Masukkan nama tempat"
+);
+
+return;
+
+}
+
+
+
+if(!currentLat){
+
+alert(
+"GPS belum siap"
+);
+
+return;
+
+}
+
+
+
+await savePlace(
+
+name,
+
+currentLat,
+
+currentLon
+
+);
+
+
+
+document
+.getElementById("placeName")
+.value="";
+
+
+
+loadList();
+
+
+};
+
+
+
+
+
+
+async function loadList(){
+
+
+const places =
+await loadPlaces();
+
+
+let html="";
+
+
+
+places.forEach((p)=>{
+
+
+html += `
+
+
+<div class="card">
+
+
+<h3>
+
+📍 ${p.name}
+
+</h3>
+
+
+<p>
+
+Latitude:
+${p.latitude}
+
+<br>
+
+Longitude:
+${p.longitude}
+
+</p>
+
+
+
+<button 
+class="btn"
+onclick="editLocation(
+'${p.id}',
+'${p.name}'
+)">
+
+✏️ Edit
+
+</button>
+
+
+<br><br>
+
+
+<button 
+class="btn-danger"
+onclick="deleteLocation(
+'${p.id}'
+)">
+
+🗑 Delete
+
+</button>
+
+
+
+</div>
+
+
+`;
+
+
+
+});
+
+
+
+document
+.getElementById("list")
+.innerHTML =
+html;
+
+
+
+}
+
+
+
+
+window.editLocation =
+async function(id,name){
+
+
+let newName =
+prompt(
+"Nama baru:",
+name
+);
+
+
+
+if(newName){
+
+
+await editPlace(
+id,
+newName
+);
+
+
+loadList();
+
+
+}
+
+
+};
+
+
+
+
+
+window.deleteLocation =
+async function(id){
+
+
+if(confirm(
+"Padam lokasi ini?"
+)){
+
+
+await deletePlace(id);
+
+
+loadList();
+
+
+}
+
+
+};
+
+
+
+
+loadList();
+
+
+
+</script>
+
+
+
+</body>
+
+</html>

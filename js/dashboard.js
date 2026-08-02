@@ -775,33 +775,130 @@ if (driverStatusEl) {
     }
   });
 }
+// ===============================
+// GOOGLE MAP BUTTON
+// ===============================
+
 const btnMap = document.getElementById("btn-map");
 
 if(btnMap){
 
-btnMap.onclick = () => {
+btnMap.onclick = ()=>{
 
-    if(navigator.geolocation){
+navigator.geolocation.getCurrentPosition((pos)=>{
 
-        navigator.geolocation.getCurrentPosition((pos)=>{
+let lat = pos.coords.latitude;
+let lng = pos.coords.longitude;
 
-            let lat = pos.coords.latitude;
-            let lng = pos.coords.longitude;
+window.open(
+`https://www.google.com/maps?q=${lat},${lng}`,
+"_blank"
+);
 
-            let url =
-            `https://www.google.com/maps?q=${lat},${lng}`;
-
-            window.open(url,"_blank");
-
-        });
-
-    }else{
-
-        window.open(
-        "https://maps.google.com",
-        "_blank"
-        );
-
-    }
+});
 
 };
+
+}
+
+
+// ===============================
+// DASHBOARD MAP
+// ===============================
+
+let dashMap;
+
+
+function initDashboardMap(){
+
+const mapDiv = document.getElementById("map");
+
+if(!mapDiv) return;
+
+dashMap = L.map("map").setView(
+[3.1390,101.6869],
+13
+);
+
+
+L.tileLayer(
+"https://tile.openstreetmap.org/{z}/{x}/{y}.png"
+).addTo(dashMap);
+
+
+
+navigator.geolocation.getCurrentPosition((pos)=>{
+
+let lat = pos.coords.latitude;
+let lng = pos.coords.longitude;
+
+
+dashMap.setView(
+[lat,lng],
+16
+);
+
+
+L.marker([lat,lng])
+.addTo(dashMap)
+.bindPopup("Lokasi saya")
+.openPopup();
+
+
+});
+
+
+
+const searchBox = document.getElementById("searchBox");
+
+
+if(searchBox){
+
+searchBox.addEventListener("change",async()=>{
+
+
+let text = searchBox.value;
+
+
+let res = await fetch(
+`https://nominatim.openstreetmap.org/search?format=json&q=${text}`
+);
+
+
+let data = await res.json();
+
+
+if(data.length){
+
+let lat = data[0].lat;
+let lng = data[0].lon;
+
+
+dashMap.setView(
+[lat,lng],
+16
+);
+
+
+L.marker([lat,lng])
+.addTo(dashMap)
+.bindPopup(text)
+.openPopup();
+
+
+}
+
+
+});
+
+
+}
+
+
+}
+
+
+document.addEventListener(
+"DOMContentLoaded",
+initDashboardMap
+);

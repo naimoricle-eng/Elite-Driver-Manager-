@@ -12,9 +12,7 @@ serverTimestamp
 from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 
-// ==========================
-// SIMPAN TEMPAT BARU
-// ==========================
+// SIMPAN TEMPAT
 
 export async function savePlace(
 name,
@@ -42,8 +40,9 @@ createdAt:serverTimestamp()
 
 );
 
+
 console.log(
-"Tempat disimpan:",
+"Lokasi disimpan",
 name
 );
 
@@ -51,11 +50,10 @@ name
 
 
 
-// ==========================
-// AMBIL SENARAI TEMPAT
-// ==========================
+// LOAD TEMPAT
 
 export async function loadPlaces(){
+
 
 const snapshot =
 await getDocs(
@@ -63,10 +61,12 @@ collection(db,"savedPlaces")
 );
 
 
+
 let places=[];
 
 
-snapshot.forEach((item)=>{
+
+snapshot.forEach(item=>{
 
 
 places.push({
@@ -81,15 +81,15 @@ id:item.id,
 });
 
 
+
 return places;
 
 }
 
 
 
-// ==========================
-// EDIT NAMA TEMPAT
-// ==========================
+
+// EDIT NAMA
 
 export async function editPlace(
 id,
@@ -99,7 +99,11 @@ newName
 
 await updateDoc(
 
-doc(db,"savedPlaces",id),
+doc(
+db,
+"savedPlaces",
+id
+),
 
 {
 
@@ -110,30 +114,25 @@ name:newName
 );
 
 
-console.log(
-"Nama tempat dikemaskini"
-);
-
 }
 
 
 
-// ==========================
-// DELETE TEMPAT
-// ==========================
+
+// DELETE
 
 export async function deletePlace(id){
 
 
 await deleteDoc(
 
-doc(db,"savedPlaces",id)
+doc(
+db,
+"savedPlaces",
+id
+)
 
 );
 
-
-console.log(
-"Tempat dipadam"
-);
 
 }

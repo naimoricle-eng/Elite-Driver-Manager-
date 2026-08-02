@@ -10,38 +10,7 @@
 <link rel="stylesheet"
 href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
 
-<style>
 
-html,body{
-margin:0;
-padding:0;
-font-family:Arial;
-}
-
-#map{
-height:65vh;
-width:100%;
-}
-
-#timeline{
-padding:15px;
-background:white;
-}
-
-.timeline-item{
-padding:10px;
-margin-bottom:10px;
-border-left:5px solid #2196f3;
-background:#f5f5f5;
-border-radius:5px;
-}
-
-.info{
-font-weight:bold;
-font-size:16px;
-}
-
-</style>
 
 </head>
 
@@ -169,7 +138,7 @@ timeline += `
 
 </div>
 
-`;
+
 
 }
 
@@ -229,7 +198,7 @@ ${points.length}
 
 </div>
 
-`;
+
 
 const polyline = L.polyline(route,{
 color:"blue",
@@ -255,7 +224,7 @@ iconSize:[32,32]
 📍 ${attendanceData.location || "-"}
 <br>
 🕒 ${formatTime(attendanceData.checkIn)}
-`);
+);
 
 }
 
@@ -276,7 +245,7 @@ iconSize:[32,32]
 📍 ${attendanceData.checkoutLocation || "-"}
 <br>
 🕒 ${formatTime(attendanceData.checkOut)}
-`);
+);
 
 }
 
@@ -288,9 +257,9 @@ L.circleMarker(p,{
 radius:4
 })
 .addTo(map)
-.bindPopup(`
+.bindPopup(
 🚗 Point ${index+1}
-`);
+);
 
 });
 

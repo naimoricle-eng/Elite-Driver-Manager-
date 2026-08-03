@@ -1,9 +1,8 @@
-import { auth, db, storage } from "./firebase.js";
+import { auth, db } from "./firebase.js";
 
 import {
 onAuthStateChanged
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-
 
 import {
 collection,
@@ -17,106 +16,233 @@ updateDoc,
 serverTimestamp
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
-
-import {
-ref,
-uploadString,
-getDownloadURL
-} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-storage.js";
-
-
 import {
 startTracking,
 stopTracking
 } from "./tracking.js";
 
 
-
-// =====================
+// ======================
 // GLOBAL
-// =====================
+// ======================
 
-let user=null;
+let user = null;
 
-let driver={
-name:"",
-email:"",
-position:"",
-role:"driver"
+let driver = {
+    name:"",
+    email:"",
+    position:"",
+    role:"driver"
 };
 
 
-let locationData={
-lat:null,
-lon:null,
-place:""
+let locationData = {
+    latitude:null,
+    longitude:null,
+    place:""
 };
 
 
-let selfieBase64=null;
+let selfieData = null;
+
+let attendanceID = null;
+let currentStatus = "Standby";
+let driverMarker = null;
+let watchID = null;
+let lastTrackLat = null;
+let lastTrackLon = null;
 
 let map;
-let marker;
-
-let attendanceID=null;
-
-
-
-// =====================
-// MAP
-// =====================
+let checkinMarker;
+let checkoutMarker;
+// ======================
+// SHOW ATTENDANCE MARKER
+// ======================
 
 
-function initMap(){
+function showMarker(
+lat,
+lon,
+text,
+type
+){
 
 
-map=L.map("map")
-.setView(
-[3.1390,101.6869],
-13
+if(!map)return;
+
+
+
+let marker =
+L.marker(
+[lat,lon]
+)
+.addTo(map);
+
+
+
+marker.bindPopup(
+text
 );
 
 
 
-L.tileLayer(
+if(type==="checkin"){
 
-"https://tile.openstreetmap.org/{z}/{x}/{y}.png",
-
-{
-attribution:"OpenStreetMap"
-}
-
-).addTo(map);
-
+checkinMarker=marker;
 
 }
 
 
+if(type==="checkout"){
 
-window.onload=()=>{
+checkoutMarker=marker;
 
-if(
-document.getElementById("map")
+}
+
+
+}
+
+
+
+// ======================
+// LOAD MAP ATTENDANCE
+// ======================
+
+function loadAttendanceMap(
+data
 ){
 
-initMap();
+
+
+if(
+data.latitude &&
+data.longitude
+){
+
+
+showMarker(
+
+data.latitude,
+
+data.longitude,
+
+"📍 Check In<br>"+data.location,
+
+"checkin"
+
+);
+
 
 }
 
-};
+
+
+if(
+data.checkoutLatitude &&
+data.checkoutLongitude
+){
+
+
+showMarker(
+
+data.checkoutLatitude,
+
+data.checkoutLongitude,
+
+"🛑 Check Out<br>"+data.checkoutLocation,
+
+"checkout"
+
+);
+
+
+}
 
 
 
+}
 
-// =====================
+
+// ======================
+// ELEMENT
+// ======================
+
+const statusText =
+document.getElementById("status");
+
+const checkinBtn =
+document.getElementById("btn-checkin");
+
+const selfieBtn =
+document.getElementById("btn-selfie");
+
+const checkoutBtn =
+document.getElementById("btn-checkout");
+
+const selfieInput =
+document.getElementById("selfieInput");
+
+
+// ======================
+// LOGIN
+// ======================
+
+onAuthStateChanged(
+auth,
+async(currentUser)=>{
+
+
+if(!currentUser){
+
+location.href="login.html";
+return;
+
+}
+
+
+user=currentUser;
+
+
+let snap =
+await getDoc(
+doc(db,"users",user.uid)
+);
+
+
+if(snap.exists()){
+
+
+let data=snap.data();
+
+
+driver.name=data.name || "";
+
+driver.email=data.email || user.email;
+
+driver.position=data.position || "";
+
+driver.role=data.role || "driver";
+loadTodayAttendance();
+
+}
+
+
+console.log(driver);
+
+
+});
+
+
+
+// ======================
 // GPS
-// =====================
+// ======================
+
+async function getLocation(){
 
 
-async function getGPS(){
-
-
-return new Promise((resolve,reject)=>{
+return new Promise(
+(resolve,reject)=>{
 
 
 navigator.geolocation.getCurrentPosition(
@@ -124,27 +250,23 @@ navigator.geolocation.getCurrentPosition(
 async(pos)=>{
 
 
-locationData.lat =
+locationData.latitude =
 pos.coords.latitude;
 
 
-locationData.lon =
+locationData.longitude =
 pos.coords.longitude;
-
 
 
 locationData.place =
 await getPlaceName(
-
-locationData.lat,
-locationData.lon
-
+locationData.latitude,
+locationData.longitude
 );
 
 
 
 resolve(locationData);
-
 
 
 },
@@ -157,6 +279,7 @@ reject,
 enableHighAccuracy:true
 }
 
+
 );
 
 
@@ -167,8 +290,14 @@ enableHighAccuracy:true
 
 
 
+// ======================
+// ADDRESS
+// ======================
 
 async function getPlaceName(lat,lon){
+
+
+try{
 
 
 let res =
@@ -183,70 +312,49 @@ let data =
 await res.json();
 
 
-return data.display_name ||
-"Unknown";
+return data.display_name || "Unknown";
 
 
 }
-// =====================
-// SELFIE CAMERA
-// =====================
+
+catch{
 
 
-const video =
-document.getElementById("selfieCamera");
+return "Unknown";
 
 
-const canvas =
-document.getElementById("selfieCanvas");
+}
 
 
-const preview =
-document.getElementById("selfiePreview");
+}
 
 
 
-const selfieBtn =
-document.getElementById("openCameraBtn");
+// ======================
+// CHECK IN BUTTON
+// ======================
 
-
-
-let cameraStream=null;
-
-
-
-selfieBtn.onclick=async()=>{
+checkinBtn.onclick =
+async()=>{
 
 
 try{
 
 
-cameraStream =
-await navigator.mediaDevices.getUserMedia({
+statusText.innerHTML =
+"⏳ Ambil lokasi...";
 
-video:{
-facingMode:"user"
-},
 
-audio:false
-
-});
+await getLocation();
 
 
 
-video.srcObject =
-cameraStream;
+statusText.innerHTML =
+"📍 Lokasi OK";
 
 
+selfieBtn.disabled=false;
 
-video.style.display="block";
-
-
-
-document.getElementById(
-"checkInStatus"
-).innerHTML =
-"📷 Kamera aktif";
 
 
 }
@@ -254,386 +362,297 @@ document.getElementById(
 catch(error){
 
 
+alert(
+"GPS gagal"
+);
+
+
 console.log(error);
 
 
-alert(
-"Kamera tidak dibenarkan"
+}
+
+
+};
+// ======================
+// SELFIE
+// ======================
+
+const stepSelfieStatus =
+document.getElementById(
+"stepSelfieStatus"
 );
 
 
-}
+const stepLocationStatus =
+document.getElementById(
+"stepLocationStatus"
+);
+
+
+const slideConfirm =
+document.getElementById(
+"slideConfirm"
+);
+
+
+const sliderKnob =
+document.getElementById(
+"sliderKnob"
+);
+
+
+const slideTrack =
+document.getElementById(
+"slideTrack"
+);
+
+
+let slideOK = false;
+
+
+
+// ======================
+// SELFIE BUTTON
+// ======================
+
+selfieBtn.onclick = ()=>{
+
+
+selfieInput.click();
 
 
 };
 
 
 
+// ======================
+// GET SELFIE
+// ======================
 
-// =====================
-// CAPTURE SELFIE
-// =====================
-
-
-video.onclick=()=>{
+selfieInput.onchange = ()=>{
 
 
-canvas.width =
-video.videoWidth;
+let file =
+selfieInput.files[0];
 
 
-canvas.height =
-video.videoHeight;
+if(!file)return;
 
 
 
-let ctx =
-canvas.getContext("2d");
+let reader =
+new FileReader();
 
 
 
-ctx.drawImage(
+reader.onload = ()=>{
 
-video,
 
-0,
-
-0,
-
-canvas.width,
-
-canvas.height
-
-);
+selfieData =
+reader.result;
 
 
 
+stepSelfieStatus.innerHTML =
+"✔";
 
 
-selfieBase64 =
-compressCanvas(canvas);
-
-
-
-preview.src =
-selfieBase64;
+stepSelfieStatus.className =
+"step-ok";
 
 
 
-preview.style.display="block";
+statusText.innerHTML =
+"📸 Selfie OK";
 
 
 
-document.getElementById(
-"checkInStatus"
-).innerHTML =
-"✅ Selfie siap";
+showSlide();
 
 
 };
 
 
 
+reader.readAsDataURL(file);
 
-// =====================
-// COMPRESS IMAGE
-// =====================
 
-
-function compressCanvas(canvas){
-
-
-let maxWidth=600;
-
-
-let width=canvas.width;
-
-let height=canvas.height;
-
-
-
-if(width>maxWidth){
-
-
-height =
-height *
-(maxWidth/width);
-
-
-width=maxWidth;
-
-
-}
-
-
-
-let newCanvas =
-document.createElement(
-"canvas"
-);
-
-
-
-newCanvas.width=width;
-
-newCanvas.height=height;
-
-
-
-let ctx =
-newCanvas.getContext("2d");
-
-
-
-ctx.drawImage(
-
-canvas,
-
-0,
-
-0,
-
-width,
-
-height
-
-);
-
-
-
-return newCanvas.toDataURL(
-
-"image/jpeg",
-
-0.6
-
-);
-
-
-}
-// =====================
-// SLIDE CONFIRM
-// =====================
-
-
-const slider =
-document.getElementById(
-"confirmSlider"
-);
-
-
-const checkInBtn =
-document.getElementById(
-"checkInBtn"
-);
-
-
-
-let sliderOK=false;
-
-
-
-slider.oninput=()=>{
-
-
-if(slider.value>=95){
-
-
-sliderOK=true;
-
-
-document.getElementById(
-"checkInStatus"
-).innerHTML =
-"✅ Confirm diterima";
-
-
-checkReady();
-
-
-
-}
 
 };
 
 
 
+// ======================
+// SHOW SLIDE
+// ======================
 
-// =====================
-// CHECK READY
-// =====================
-
-
-function checkReady(){
+function showSlide(){
 
 
 if(
-
-locationData.lat &&
-
-selfieBase64 &&
-
-sliderOK
-
+locationData.latitude &&
+selfieData
 ){
 
 
-checkInBtn.disabled=false;
+stepLocationStatus.innerHTML =
+"✔";
+
+
+stepLocationStatus.className =
+"step-ok";
+
+
+
+slideConfirm.style.display =
+"flex";
 
 
 }
 
-}
-
-
-
-// =====================
-// UPLOAD SELFIE STORAGE
-// =====================
-
-
-async function uploadSelfie(){
-
-
-if(!selfieBase64){
-
-return null;
 
 }
 
 
 
-let fileName =
-"selfie/" +
-Date.now() +
-".jpg";
+// ======================
+// SLIDE FUNCTION
+// ======================
+
+
+if(sliderKnob){
+
+
+let moving=false;
 
 
 
-let imageRef =
-ref(
-storage,
-fileName
+function moveSlider(x){
+
+
+let box =
+slideTrack.getBoundingClientRect();
+
+
+let max =
+box.width - 45;
+
+
+let pos =
+x - box.left;
+
+
+
+if(pos<5)
+pos=5;
+
+
+if(pos>max)
+pos=max;
+
+
+
+sliderKnob.style.left =
+pos+"px";
+
+
+
+if(pos>=max-5){
+
+
+slideOK=true;
+
+
+statusText.innerHTML =
+"✅ Slide OK";
+
+
+}
+
+
+}
+
+
+
+sliderKnob.addEventListener(
+"touchmove",
+(e)=>{
+
+
+moveSlider(
+e.touches[0].clientX
+);
+
+
+}
 );
 
 
 
-await uploadString(
+sliderKnob.addEventListener(
+"mousemove",
+(e)=>{
 
-imageRef,
 
-selfieBase64,
+if(e.buttons){
 
-"data_url"
-
+moveSlider(
+e.clientX
 );
 
-
-
-let url =
-await getDownloadURL(
-imageRef
-);
-
-
-
-return url;
+}
 
 
 }
-// =====================
-// CHECK IN
-// =====================
+);
 
 
-checkInBtn.onclick = async()=>{
+}
+
+
+
+// ======================
+// SAVE CHECK IN
+// ======================
+
+
+checkinBtn.onclick =
+async()=>{
+
+
+try{
 
 
 if(
-!user ||
-!locationData.lat ||
-!selfieBase64
+!locationData.latitude ||
+!selfieData ||
+!slideOK
 ){
 
-alert(
-"Lengkapkan lokasi dan selfie"
-);
-
-return;
-
-}
-
-
-
-checkInBtn.disabled=true;
-
-
-
-document.getElementById(
-"checkInStatus"
-).innerHTML =
-"⏳ Menyimpan...";
-
-
-
-// upload selfie
-
-let selfieURL =
-await uploadSelfie();
-
-
-
-
-// semak attendance aktif
-
-let q =
-query(
-
-collection(
-db,
-"attendance"
-),
-
-where(
-"uid",
-"==",
-user.uid
-),
-
-where(
-"status",
-"==",
-"Working"
-)
-
-);
-
-
-
-let snap =
-await getDocs(q);
-
-
-
-if(!snap.empty){
-
 
 alert(
-"Anda masih Check In"
+"Lengkapkan lokasi, selfie dan slide"
 );
 
 
 return;
 
+
 }
 
 
 
+checkinBtn.disabled=true;
 
-// simpan Firestore
 
 
-let docRef =
+statusText.innerHTML =
+"⏳ Simpan...";
+
+
+
+let ref =
 await addDoc(
 
 collection(
@@ -647,40 +666,37 @@ db,
 uid:user.uid,
 
 
-name:
-driver.name,
+name:driver.name,
 
 
-email:
-driver.email,
+email:driver.email,
 
 
-position:
-driver.position,
+position:driver.position,
 
 
-role:
-driver.role,
-
-
-selfieURL:
-selfieURL,
+role:driver.role,
 
 
 latitude:
-locationData.lat,
+locationData.latitude,
 
 
 longitude:
-locationData.lon,
+locationData.longitude,
 
 
 location:
 locationData.place,
 
 
+selfie:
+selfieData,
+
+
 status:"Working",
 
+driverStatus:"Driving",
 
 trackingStatus:"Running",
 
@@ -699,231 +715,84 @@ serverTimestamp()
 
 
 
-
 attendanceID =
-docRef.id;
+ref.id;
 
 
 
 localStorage.setItem(
-
 "attendanceID",
-
 attendanceID
-
 );
+
+
+
 localStorage.setItem(
 "checkInTime",
-new Date()
+Date.now()
 );
 
 
 
-localStorage.setItem(
-
-"status",
-
-"Working"
-
-);
-
-
-
-document.getElementById(
-"checkInStatus"
-).innerHTML =
+statusText.innerHTML =
 "✅ Check In Berjaya";
-
 
 
 
 // mula tracking
 
-startTracking();
+startTracking(
+attendanceID
+);
+startLiveTracking();
 
+
+
+checkoutBtn.disabled=false;
+
+
+}
+
+
+catch(error){
+
+
+console.log(error);
+
+
+alert(
+"Gagal Check In"
+);
+
+
+checkinBtn.disabled=false;
+
+
+}
 
 
 };
+// ======================
+// CHECK OUT SYSTEM
+// ======================
 
 
+checkoutBtn.onclick =
+async()=>{
 
 
-// =====================
-// RESTORE SESSION
-// =====================
+try{
 
 
-async function restoreSession(){
-
-
-let id =
+let savedID =
+attendanceID ||
 localStorage.getItem(
 "attendanceID"
 );
 
 
 
-if(!id)return;
-
-
-
-let snap =
-await getDoc(
-
-doc(
-db,
-"attendance",
-id
-)
-
-);
-
-
-
-if(
-snap.exists()
-){
-
-let data =
-snap.data();
-
-
-
-if(
-data.status==="Working"
-){
-
-
-attendanceID=id;
-
-
-startTracking();
-
-
-
-document.getElementById(
-"checkInStatus"
-).innerHTML =
-"🚗 Sedang bekerja";
-
-
-}
-
-}
-
-
-
-}
-
-
-
-
-// =====================
-// LOAD USER
-// =====================
-
-
-onAuthStateChanged(
-
-auth,
-
-async(current)=>{
-
-
-if(!current){
-
-location.href="login.html";
-
-return;
-
-}
-
-
-
-user=current;
-
-
-
-let snap =
-await getDoc(
-
-doc(
-db,
-"users",
-user.uid
-)
-
-);
-
-
-
-if(
-snap.exists()
-){
-
-
-let data =
-snap.data();
-
-
-
-driver.name =
-data.name || "";
-
-
-driver.email =
-data.email || user.email;
-
-
-driver.position =
-data.position || "";
-
-
-driver.role =
-data.role || "driver";
-
-
-}
-
-
-
-
-restoreSession();
-
-
-
-}
-
-);
-// =====================
-// CHECK OUT
-// =====================
-
-
-const checkOutBtn =
-document.getElementById(
-"checkOutBtn"
-);
-
-
-
-checkOutBtn.onclick = async()=>{
-
-
-if(!attendanceID){
-
-
-attendanceID =
-localStorage.getItem(
-"attendanceID"
-);
-
-
-}
-
-
-
-if(!attendanceID){
+if(!savedID){
 
 
 alert(
@@ -938,17 +807,12 @@ return;
 
 
 
-try{
-
-
-document.getElementById(
-"checkInStatus"
-).innerHTML =
-"⏳ Check Out...";
+statusText.innerHTML =
+"⏳ Ambil lokasi Check Out...";
 
 
 
-// ambil lokasi semasa
+// GPS semasa checkout
 
 let pos =
 await new Promise(
@@ -989,22 +853,14 @@ lon
 
 
 
+// kira waktu
 
-// ambil masa check in
-
-let start =
+let startTime =
+Number(
 localStorage.getItem(
 "checkInTime"
+)
 );
-
-
-
-if(!start){
-
-start =
-Date.now();
-
-}
 
 
 
@@ -1012,21 +868,21 @@ let totalHour =
 (
 Date.now()
 -
-new Date(start)
+startTime
 )
 /
 3600000;
 
 
 
-let otHour=0;
+let otHour = 0;
 
 
 
-if(totalHour>8){
+if(totalHour > 8){
 
 otHour =
-totalHour-8;
+totalHour - 8;
 
 }
 
@@ -1037,25 +893,23 @@ otHour * 20;
 
 
 
-
+// update Firestore
 
 await updateDoc(
 
 doc(
 db,
 "attendance",
-attendanceID
+savedID
 ),
 
 {
 
 
-status:
-"Completed",
+status:"Completed",
 
 
-trackingStatus:
-"Stopped",
+trackingStatus:"Stopped",
 
 
 checkOut:
@@ -1098,20 +952,18 @@ otMoney.toFixed(2)
 
 
 
-
 // stop tracking
 
 stopTracking();
+stopLiveTracking();
 
 
 
-
-// clear session
+// clear data
 
 localStorage.removeItem(
 "attendanceID"
 );
-
 
 
 localStorage.removeItem(
@@ -1124,11 +976,15 @@ attendanceID=null;
 
 
 
-
-document.getElementById(
-"checkInStatus"
-).innerHTML =
+statusText.innerHTML =
 "✅ Check Out Berjaya";
+
+
+
+checkoutBtn.disabled=true;
+
+
+checkinBtn.disabled=false;
 
 
 
@@ -1149,3 +1005,560 @@ alert(
 
 
 };
+// ======================
+// LOAD TODAY ATTENDANCE
+// ======================
+
+
+async function loadTodayAttendance(){
+
+
+if(!user)return;
+
+
+
+let q =
+query(
+
+collection(db,"attendance"),
+
+where(
+"uid",
+"==",
+user.uid
+)
+
+);
+
+
+
+let snap =
+await getDocs(q);
+
+
+
+if(snap.empty){
+
+return;
+
+}
+
+
+
+let latest=null;
+
+
+
+snap.forEach((doc)=>{
+
+
+latest={
+id:doc.id,
+...doc.data()
+};
+
+
+});
+
+
+
+if(!latest)return;
+
+
+
+// CHECK IN
+
+if(latest.checkIn){
+
+
+document.getElementById(
+"checkinData"
+).innerHTML =
+"CHECK IN : ✔";
+
+
+}
+
+
+
+document.getElementById(
+"checkinLocation"
+).innerHTML =
+"📍 CHECK IN LOCATION : " +
+(latest.location || "-");
+
+loadAttendanceMap(latest);
+
+
+// CHECK OUT
+
+if(latest.checkOut){
+
+
+document.getElementById(
+"checkoutData"
+).innerHTML =
+"CHECK OUT : ✔";
+
+
+}
+
+
+
+document.getElementById(
+"checkoutLocation"
+).innerHTML =
+"📍 CHECK OUT LOCATION : " +
+(latest.checkoutLocation || "-");
+
+
+
+
+// WORK HOUR
+
+if(latest.totalHour){
+
+
+document.getElementById(
+"totalData"
+).innerHTML =
+"TOTAL WORKING : " +
+latest.totalHour +
+" jam";
+
+
+document.getElementById(
+"dashHour"
+).innerHTML =
+latest.totalHour +
+" jam";
+
+
+}
+
+
+
+
+// OT
+
+if(latest.otHour){
+
+
+document.getElementById(
+"otData"
+).innerHTML =
+"OT : " +
+latest.otHour +
+" jam";
+
+
+document.getElementById(
+"otMoney"
+).innerHTML =
+"TOTAL OT : RM " +
+latest.otMoney;
+
+
+
+document.getElementById(
+"dashOT"
+).innerHTML =
+"RM " +
+latest.otMoney;
+
+
+}
+
+
+
+}
+if(latest.driverStatus){
+
+
+document.getElementById(
+"dashStatus"
+).innerHTML =
+latest.driverStatus;
+
+
+document.getElementById(
+"driverStatus"
+).value =
+latest.driverStatus;
+
+
+}
+// ======================
+// OPEN GOOGLE MAP
+// ======================
+
+
+const openCheckinMap =
+document.getElementById(
+"openCheckinMap"
+);
+
+
+const openCheckoutMap =
+document.getElementById(
+"openCheckoutMap"
+);
+
+
+
+if(openCheckinMap){
+
+
+openCheckinMap.onclick=()=>{
+
+
+if(checkinMarker){
+
+
+let pos =
+checkinMarker.getLatLng();
+
+
+
+window.open(
+
+`https://www.google.com/maps?q=${pos.lat},${pos.lng}`,
+
+"_blank"
+
+);
+
+
+}
+
+
+};
+
+
+}
+
+
+
+if(openCheckoutMap){
+
+
+openCheckoutMap.onclick=()=>{
+
+
+if(checkoutMarker){
+
+
+let pos =
+checkoutMarker.getLatLng();
+
+
+
+window.open(
+
+`https://www.google.com/maps?q=${pos.lat},${pos.lng}`,
+
+"_blank"
+
+);
+
+
+}
+
+
+};
+
+
+}
+// ======================
+// LIVE DRIVER TRACKING
+// ======================
+
+
+function startLiveTracking(){
+
+
+if(watchID !== null)return;
+
+
+
+watchID =
+navigator.geolocation.watchPosition(
+
+async(pos)=>{
+
+
+let lat =
+pos.coords.latitude;
+
+
+let lon =
+pos.coords.longitude;
+
+
+
+// kira jarak
+
+if(lastTrackLat !== null){
+
+
+let distance =
+calculateDistance(
+
+lastTrackLat,
+lastTrackLon,
+lat,
+lon
+
+);
+
+
+
+if(distance < 500){
+
+return;
+
+}
+
+
+}
+
+
+
+lastTrackLat = lat;
+lastTrackLon = lon;
+
+
+
+// UPDATE MARKER MAP
+
+
+if(map){
+
+
+if(driverMarker){
+
+
+driverMarker.setLatLng(
+[lat,lon]
+);
+
+
+}
+
+else{
+
+
+driverMarker =
+L.marker(
+
+[lat,lon],
+
+{
+
+title:"Driver"
+
+}
+
+)
+.addTo(map)
+.bindPopup(
+"🚗 Current Location"
+);
+
+
+}
+
+
+
+map.setView(
+[lat,lon],
+15
+);
+
+
+}
+
+
+
+// SIMPAN TRACKING FIRESTORE
+
+
+if(attendanceID){
+
+
+await addDoc(
+
+collection(db,"tracking"),
+
+{
+
+
+attendanceID:attendanceID,
+
+
+latitude:lat,
+
+
+longitude:lon,
+
+
+createdAt:
+serverTimestamp()
+
+
+}
+
+);
+
+
+}
+
+
+
+},
+
+(error)=>{
+
+
+console.log(
+"Tracking error",
+error
+);
+
+
+},
+
+
+{
+
+enableHighAccuracy:true,
+
+maximumAge:0,
+
+timeout:10000
+
+
+}
+
+);
+
+
+}
+
+
+
+// ======================
+// STOP LIVE TRACKING
+// ======================
+
+
+function stopLiveTracking(){
+
+
+if(watchID !== null){
+
+
+navigator.geolocation.clearWatch(
+watchID
+);
+
+
+watchID=null;
+
+
+}
+
+
+
+driverMarker=null;
+
+lastTrackLat=null;
+
+lastTrackLon=null;
+
+
+}
+// ======================
+// DRIVER STATUS
+// ======================
+
+
+const driverStatus =
+document.getElementById(
+"driverStatus"
+);
+
+
+
+if(driverStatus){
+
+
+driverStatus.onchange =
+async()=>{
+
+
+currentStatus =
+driverStatus.value;
+
+
+
+document.getElementById(
+"dashStatus"
+).innerHTML =
+currentStatus;
+
+
+
+statusText.innerHTML =
+"Status : " +
+currentStatus;
+
+
+
+let id =
+attendanceID ||
+localStorage.getItem(
+"attendanceID"
+);
+
+
+
+if(!id)return;
+
+
+
+await updateDoc(
+
+doc(
+db,
+"attendance",
+id
+),
+
+{
+
+
+driverStatus:
+currentStatus,
+
+
+statusUpdated:
+serverTimestamp()
+
+
+}
+
+);
+
+
+
+console.log(
+"Status updated:",
+currentStatus
+);
+
+
+};
+
+
+}

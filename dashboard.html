@@ -2,311 +2,501 @@
 <html lang="ms">
 
 <head>
-<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <meta name="description" content="Elite Driver Manager — check in/out, track location and attendance." />
-  <meta name="theme-color" content="#0a74da" />
-  <title>Elite Driver Manager</title>
 
-  <link rel="stylesheet" href="css/style.css" />
+<meta charset="utf-8">
 
-  <style>
-    /* Minimal sr-only helper; move to css/style.css in production */
-    .sr-only {
-      position: absolute !important;
-      width: 1px !important;
-      height: 1px !important;
-      padding: 0 !important;
-      margin: -1px !important;
-      overflow: hidden !important;
-      clip: rect(0 0 0 0) !important;
-      white-space: nowrap !important;
-      border: 0 !important;
-    }
+<meta name="viewport" content="width=device-width,initial-scale=1">
 
-    /* Slide-to-confirm styles */
-    .slide-confirm {
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      margin: 12px 0;
-    }
+<title>Elite Driver Manager</title>
 
-    .slide-track {
-      position: relative;
-      width: 320px;
-      max-width: calc(100% - 32px);
-      height: 48px;
-      background: #eee;
-      border-radius: 28px;
-      display: flex;
-      align-items: center;
-      padding: 0 12px;
-      box-sizing: border-box;
-      user-select: none;
-    }
 
-    .slider-knob {
-      position: absolute;
-      left: 6px;
-      width: 36px;
-      height: 36px;
-      border-radius: 50%;
-      background: #0a74da;
-      color: white;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-weight: bold;
-      cursor: pointer;
-      touch-action: none;
-      transition: left 0.08s linear;
-      box-shadow: 0 2px 6px rgba(0,0,0,0.2);
-    }
+<link rel="stylesheet"
+href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
 
-    .slide-track span {
-      margin: 0 auto;
-      color: #444;
-      pointer-events: none;
-    }
 
-    /* Toast */
-    .toast {
-      position: fixed;
-      top: 12px;
-      right: 12px;
-      background: rgba(0,0,0,0.8);
-      color: #fff;
-      padding: 10px 14px;
-      border-radius: 6px;
-      display: none;
-      z-index: 9999;
-    }
+<link rel="stylesheet"
+href="css/style.css">
 
-    /* Greeting */
-    #greeting {
-      margin-top: 4px;
-      margin-bottom: 12px;
-      font-size: 1.1rem;
-      color: #0a74da;
-    }
 
-    /* Step indicators */
-    .steps {
-      display: flex;
-      gap: 12px;
-      margin-top: 10px;
-      align-items: center;
-      font-size: 0.95rem;
-      color: #333;
-    }
 
-    .step-ok { color: green; font-weight: bold }
-    .step-pending { color: #888 }
+<style>
 
-    @media (max-width:480px) {
-      .slide-track { width: 260px }
-    }
-    #map{
-  width:100%;
-  height:350px;
-  margin-top:15px;
-  border-radius:12px;
-}
-#searchBox{
-  width:100%;
-  padding:12px;
-  margin-top:15px;
-  border-radius:8px;
-  border:1px solid #ccc;
-  font-size:16px;
-}
+
 #map{
-height:350px;
+
 width:100%;
+
+height:350px;
+
 border-radius:12px;
+
 margin-top:10px;
+
 }
 
+
 #searchBox{
+
 width:100%;
+
 padding:12px;
+
 font-size:16px;
+
 border-radius:8px;
+
+border:1px solid #ccc;
+
 }
-  </style>
+
+
+
+.toast{
+
+position:fixed;
+
+top:10px;
+
+right:10px;
+
+background:#000;
+
+color:white;
+
+padding:10px;
+
+border-radius:8px;
+
+display:none;
+
+z-index:9999;
+
+}
+
+
+
+</style>
+
 </head>
 
+
+
 <body>
-  <header>
-    <nav id="menu" role="navigation" aria-label="Main menu"></nav>
-    <div id="theme" aria-hidden="true"></div>
-    <h1 class="sr-only">Elite Driver Manager</h1>
-  </header>
 
-  <main class="dashboard" id="main" tabindex="-1">
-    <h1>Elite Driver Manager</h1>
 
-    <!-- Greeting shown after successful check-in -->
-    <h2 id="greeting" style="display:none">Welcome</h2>
+<header>
 
-    <section class="action-card" aria-labelledby="action-menu-title">
-      <h2 id="action-menu-title">⚡ ACTION MENU</h2>
+<nav id="menu"></nav>
 
-      <div class="action-list" role="toolbar" aria-label="Action controls">
-        <!-- Location button: placed first as requested -->
-        <button id="btn-location" type="button" aria-label="Share location">
-          <span aria-hidden="true">📍</span>
-          <span>LOCATION</span>
-        </button>
+</header>
 
-        <!-- Check-in will initiate location/selfie/slide flow -->
-        <button id="btn-checkin" type="button" aria-pressed="false" aria-label="Check in">
-          <span aria-hidden="true">🚗</span>
-          <span>CHECK IN</span>
-        </button>
 
-        <!-- Selfie button: disabled until location is available -->
-        <button id="btn-selfie" type="button" aria-label="Take selfie" disabled>
-          <span aria-hidden="true">📸</span>
-          <span>SELFIE</span>
-        </button>
 
-        <button id="btn-checkout" type="button" disabled aria-disabled="true" aria-label="Check out">
-          <span aria-hidden="true">🛑</span>
-          <span>CHECK OUT</span>
-        </button>
+<main class="dashboard">
 
-        <label for="driverStatus" class="sr-only">Driver status</label>
-        <select id="driverStatus" name="driverStatus" aria-label="Driver status">
-          <option value="Driving">🚗 Driving</option>
-          <option value="Standby">🟢 Standby</option>
-          <option value="Lunch">🍽️ Lunch</option>
-          <option value="Toilet">🚻 Toilet</option>
-          <option value="Prayer">🕌 Prayer</option>
-          <option value="Refuel">⛽ Refuel</option>
-          <option value="Car Wash">🧽 Car Wash</option>
-          <option value="Rest">😴 Rest</option>
-        </select>
 
-       <button id="btn-map" type="button">
-  <span>🗺️</span>
-  <span>GOOGLE MAP</span>
+<h1>
+Elite Driver Manager
+</h1>
+
+
+
+<h2 id="greeting"
+style="display:none">
+Welcome
+</h2>
+
+
+
+
+
+<section class="action-card">
+
+
+<h2>
+⚡ ACTION MENU
+</h2>
+
+
+
+<div class="action-list">
+
+
+
+<!-- ONLY CHECK IN -->
+
+<button 
+id="btn-checkin"
+type="button">
+
+<span>
+🚗
+</span>
+
+<span>
+CHECK IN
+</span>
+
 </button>
 
-<button id="btn-places" type="button">
-  <span>📍</span>
-  <span>GO TO PLACES</span>
+
+
+
+
+<button
+id="btn-checkout"
+type="button"
+disabled>
+
+
+<span>
+🛑
+</span>
+
+<span>
+CHECK OUT
+</span>
+
+
 </button>
-      </div>
 
-      <p id="status" aria-live="polite" aria-atomic="true">Standby</p>
 
-      <!-- Step indicators show progress: location and selfie -->
-      <div class="steps" aria-hidden="false">
-        <div id="stepLocation">📍 Location: <span id="stepLocationStatus" class="step-pending">✖</span></div>
-        <div id="stepSelfie">📸 Selfie: <span id="stepSelfieStatus" class="step-pending">✖</span></div>
-      </div>
 
-      <!-- Slide-to-confirm control (hidden until user has location + selfie) -->
-      <div id="slideConfirm" class="slide-confirm" style="display:none" aria-hidden="true">
-        <div class="slide-track" id="slideTrack">
-          <div id="sliderKnob" class="slider-knob" role="slider" aria-label="Slide to confirm" tabindex="0">»</div>
-          <span>Slide to confirm Check In</span>
-        </div>
-      </div>
 
-    </section>
 
-    <div id="toast" class="toast" role="status" aria-live="polite"></div>
+<select
+id="driverStatus">
 
-    <input
-      type="file"
-      id="selfieInput"
-      accept="image/*"
-      capture="user"
-      style="display:none"
-      aria-hidden="true" />
-      <section class="map-card">
 
-<input id="searchBox" type="text" placeholder="Taip tempat...">
+<option value="Driving">
+🚗 Driving
+</option>
 
-<div id="map"></div>
+
+<option value="Standby">
+🟢 Standby
+</option>
+
+
+<option value="Lunch">
+🍽️ Lunch
+</option>
+
+
+<option value="Toilet">
+🚻 Toilet
+</option>
+
+
+<option value="Prayer">
+🕌 Prayer
+</option>
+
+
+<option value="Refuel">
+⛽ Refuel
+</option>
+
+
+<option value="Car Wash">
+🧽 Car Wash
+</option>
+
+
+<option value="Rest">
+😴 Rest
+</option>
+
+
+</select>
+
+
+
+
+
+<button id="btn-map"
+type="button">
+
+🗺️ GOOGLE MAP
+
+</button>
+
+
+
+
+
+<button id="btn-places"
+type="button">
+
+📍 GO TO PLACES
+
+</button>
+
+
+
+
+</div>
+
+
+
+<p id="status">
+
+Standby
+
+</p>
+
+
 
 </section>
 
-    <section class="attendance-card" aria-labelledby="attendance-title">
-      <h2 id="attendance-title">📅 ATTENDANCE TODAY</h2>
 
-      <p id="date">DATE : -</p>
 
-      <p id="checkinData">CHECK IN : -</p>
 
-      <p id="checkinLocation">📍 CHECK IN LOCATION : -</p>
 
-      <button id="openCheckinMap" type="button" style="display:none" aria-hidden="true">🗺️ OPEN CHECK IN MAP</button>
+<div id="toast"
+class="toast">
 
-      <hr />
+</div>
 
-      <p id="checkoutData">CHECK OUT : -</p>
 
-      <p id="checkoutLocation">📍 CHECK OUT LOCATION : -</p>
 
-      <button id="openCheckoutMap" type="button" style="display:none" aria-hidden="true">🗺️ OPEN CHECK OUT MAP</button>
 
-      <hr />
 
-      <p id="totalData">TOTAL WORKING : -</p>
+<!-- AUTO CAMERA -->
 
-      <p id="otData">OT : -</p>
+<input
 
-      <p id="otMoney">TOTAL OT : -</p>
-    </section>
+type="file"
 
-    <aside class="summary" aria-label="Summary cards">
-      <div class="card" role="region" aria-labelledby="status-card">
-        <h3 id="status-card">STATUS</h3>
-        <p id="dashStatus">Standby</p>
-      </div>
+id="selfieInput"
 
-      <div class="card" role="region" aria-labelledby="workhour-card">
-        <h3 id="workhour-card">WORK HOUR</h3>
-        <p id="dashHour">0 jam</p>
-      </div>
+accept="image/*"
 
-      <div class="card" role="region" aria-labelledby="ot-card">
-        <h3 id="ot-card">OT</h3>
-        <p id="dashOT">RM 0</p>
-      </div>
+capture="user"
 
-      <div class="card" role="region" aria-labelledby="claim-card">
-        <h3 id="claim-card">CLAIM</h3>
-        <p id="dashClaim">RM 0</p>
-      </div>
-    </aside>
-    
-  </main>
-  <footer>
-    <p class="sr-only">Elite Driver Manager footer</p>
-  </footer>
+style="display:none"
 
-  <!-- Keep dashboard.js as module (modern imports). Defer non-module scripts. -->
-  <!-- LEAFLET MAP -->
+>
+
+
+
+
+<section class="map-card">
+
+
+
+<input
+
+id="searchBox"
+
+placeholder="Taip tempat..."
+
+>
+
+
+
+<div id="map"></div>
+
+
+
+</section>
+<section class="attendance-card">
+
+
+<h2>
+📅 ATTENDANCE TODAY
+</h2>
+
+
+
+<p id="date">
+DATE : -
+</p>
+
+
+
+<p id="checkinData">
+CHECK IN : -
+</p>
+
+
+
+<p id="checkinLocation">
+📍 CHECK IN LOCATION : -
+</p>
+
+
+
+<button
+id="openCheckinMap"
+type="button"
+style="display:none">
+
+🗺️ OPEN CHECK IN MAP
+
+</button>
+
+
+
+
+<hr>
+
+
+
+
+<p id="checkoutData">
+CHECK OUT : -
+</p>
+
+
+
+<p id="checkoutLocation">
+📍 CHECK OUT LOCATION : -
+</p>
+
+
+
+<button
+id="openCheckoutMap"
+type="button"
+style="display:none">
+
+🗺️ OPEN CHECK OUT MAP
+
+</button>
+
+
+
+<hr>
+
+
+
+
+<p id="totalData">
+TOTAL WORKING : -
+</p>
+
+
+
+<p id="otData">
+OT : -
+</p>
+
+
+
+<p id="otMoney">
+TOTAL OT : -
+</p>
+
+
+
+</section>
+
+
+
+
+
+<section class="summary">
+
+
+
+<div class="card">
+
+<h3>
+STATUS
+</h3>
+
+<p id="dashStatus">
+Standby
+</p>
+
+</div>
+
+
+
+
+
+<div class="card">
+
+<h3>
+WORK HOUR
+</h3>
+
+<p id="dashHour">
+0 jam
+</p>
+
+</div>
+
+
+
+
+
+<div class="card">
+
+<h3>
+OT
+</h3>
+
+<p id="dashOT">
+RM 0
+</p>
+
+</div>
+
+
+
+
+
+<div class="card">
+
+<h3>
+CLAIM
+</h3>
+
+<p id="dashClaim">
+RM 0
+</p>
+
+
+</div>
+
+
+
+</section>
+
+
+
+</main>
+
+
+
+
+<footer>
+
+</footer>
+
+
+
+
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
-<!-- APP JS -->
-<script type="module" src="js/dashboard.js"></script>
+
+
+<script type="module"
+src="js/dashboard.js"></script>
+
+
 
 <script src="js/language.js" defer></script>
+
 <script src="js/menu.js" defer></script>
+
 <script src="js/theme.js" defer></script>
 
-  <noscript>
-    <div role="status">
-      Some features (check-in, location sharing) require JavaScript. Please enable JavaScript for full functionality.
-    </div>
-  </noscript>
+
+
 </body>
+
 </html>

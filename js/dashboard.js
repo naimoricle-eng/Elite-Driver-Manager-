@@ -70,6 +70,12 @@ let selfieDone=false;
 // ELEMENT
 // ======================
 
+const mapBtn =
+document.getElementById("btn-map");
+
+
+const placesBtn =
+document.getElementById("btn-places");
 
 const checkinBtn =
 document.getElementById(
@@ -142,6 +148,14 @@ let data=snap.data();
 
 driver.name =
 data.name || "";
+const greeting =
+document.getElementById("greeting");
+
+greeting.innerHTML =
+"Welcome, " + driver.name;
+
+greeting.style.display =
+"block";
 
 
 driver.email =
@@ -161,6 +175,23 @@ data.role || "driver";
 
 
 initMap();
+mapBtn.onclick = ()=>{
+
+window.open(
+"https://maps.google.com",
+"_blank"
+);
+
+};
+
+
+
+placesBtn.onclick = ()=>{
+
+window.location.href =
+"places.html";
+
+};
 
 
 loadActiveAttendance();
@@ -569,7 +600,6 @@ attendanceID
 
 
 
-startLiveTracking();
 
 
 
@@ -774,7 +804,6 @@ otMoney.toFixed(2)
 
 stopTracking();
 
-stopLiveTracking();
 
 
 
@@ -810,176 +839,6 @@ alert(
 };
 
 
-
-
-
-
-
-
-// ======================
-// LIVE TRACKING
-// ======================
-
-
-let watchID=null;
-
-
-
-function startLiveTracking(){
-
-
-if(watchID)
-return;
-
-
-
-watchID =
-navigator.geolocation.watchPosition(
-
-async(pos)=>{
-
-
-let lat =
-pos.coords.latitude;
-
-
-let lon =
-pos.coords.longitude;
-
-
-
-if(driverMarker){
-
-
-driverMarker.setLatLng(
-[
-lat,
-lon
-]
-);
-
-
-}
-
-else{
-
-
-driverMarker =
-L.marker(
-[
-lat,
-lon
-]
-)
-
-.addTo(map)
-
-.bindPopup(
-"🚗 Driver"
-);
-
-
-}
-
-
-
-
-
-if(attendanceID){
-
-
-await addDoc(
-
-collection(
-db,
-"tracking"
-),
-
-{
-
-
-attendanceID:attendanceID,
-
-
-latitude:lat,
-
-
-longitude:lon,
-
-
-createdAt:
-serverTimestamp()
-
-
-
-}
-
-);
-
-
-
-}
-
-
-
-},
-
-
-(error)=>{
-
-
-console.log(
-"Tracking error",
-error
-);
-
-
-},
-
-
-{
-
-
-enableHighAccuracy:true,
-
-
-maximumAge:0,
-
-
-timeout:10000
-
-
-
-}
-
-
-);
-
-
-}
-
-
-
-
-
-function stopLiveTracking(){
-
-
-if(watchID){
-
-
-navigator.geolocation.clearWatch(
-watchID
-);
-
-
-watchID=null;
-
-
-}
-
-
-}
 
 
 

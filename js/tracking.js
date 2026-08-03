@@ -156,13 +156,13 @@ await addDoc(
 
 collection(
 db,
+"attendance",
+attendanceID,
 "tracking"
 ),
 
 {
 
-
-attendanceID:
 
 
 attendanceID,

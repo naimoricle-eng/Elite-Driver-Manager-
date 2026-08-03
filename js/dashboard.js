@@ -4,6 +4,7 @@ import {
 onAuthStateChanged
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 
+
 import {
 doc,
 getDoc,
@@ -13,10 +14,12 @@ updateDoc,
 serverTimestamp
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
+
 import {
 startTracking,
 stopTracking
 } from "./tracking.js";
+
 
 
 // ======================
@@ -33,32 +36,33 @@ role:"driver"
 };
 
 
-let locationData={
+let attendanceID=null;
+
+
+let currentLocation={
+
 lat:null,
+
 lon:null,
+
 place:""
+
 };
 
 
-let selfieData=null;
+let map;
 
-let slideOK=false;
+let checkinMarker;
 
-let attendanceID=null;
+let checkoutMarker;
 
-let map=null;
+let driverMarker;
 
-let checkinMarker=null;
 
-let checkoutMarker=null;
 
-let driverMarker=null;
+let selfieDone=false;
 
-let watchID=null;
 
-let lastLat=null;
-
-let lastLon=null;
 
 
 
@@ -66,23 +70,29 @@ let lastLon=null;
 // ELEMENT
 // ======================
 
-const statusText =
-document.getElementById("status");
-
-const locationBtn =
-document.getElementById("btn-location");
 
 const checkinBtn =
-document.getElementById("btn-checkin");
+document.getElementById(
+"btn-checkin"
+);
 
-const selfieBtn =
-document.getElementById("btn-selfie");
 
 const checkoutBtn =
-document.getElementById("btn-checkout");
+document.getElementById(
+"btn-checkout"
+);
+
 
 const selfieInput =
-document.getElementById("selfieInput");
+document.getElementById(
+"selfieInput"
+);
+
+
+const statusText =
+document.getElementById(
+"status"
+);
 
 
 
@@ -91,8 +101,11 @@ document.getElementById("selfieInput");
 // LOGIN
 // ======================
 
+
 onAuthStateChanged(
+
 auth,
+
 async(currentUser)=>{
 
 
@@ -105,13 +118,18 @@ return;
 }
 
 
+
 user=currentUser;
 
 
 
 let snap =
 await getDoc(
-doc(db,"users",user.uid)
+doc(
+db,
+"users",
+user.uid
+)
 );
 
 
@@ -142,15 +160,16 @@ data.role || "driver";
 
 
 
-setTimeout(()=>{
-
 initMap();
 
-},500);
+
+loadActiveAttendance();
 
 
 
 });
+
+
 
 
 
@@ -163,15 +182,14 @@ initMap();
 function initMap(){
 
 
-if(map)
-return;
-
-
 map =
 L.map("map")
 .setView(
+
 [3.1390,101.6869],
+
 13
+
 );
 
 
@@ -195,50 +213,53 @@ maxZoom:19
 
 
 
+
+
+
 // ======================
-// LOCATION BUTTON
+// CHECK IN BUTTON
 // ======================
 
 
-if(locationBtn){
-
-
-locationBtn.onclick =
+checkinBtn.onclick =
 async()=>{
 
 
 try{
 
 
+checkinBtn.disabled=true;
+
+
 statusText.innerHTML=
 "⏳ Ambil lokasi...";
 
+
+
+// GPS
 
 await getLocation();
 
 
 
-document.getElementById(
-"stepLocationStatus"
-).innerHTML="✔";
-
-
-
-document.getElementById(
-"stepLocationStatus"
-).className="step-ok";
-
-
-
-selfieBtn.disabled=false;
-
 
 
 statusText.innerHTML=
-"📍 Lokasi OK";
+"📸 Sila ambil selfie";
+
+
+
+
+// buka kamera
+
+selfieInput.click();
+
+
 
 
 }
+
+
 
 catch(e){
 
@@ -247,17 +268,20 @@ console.log(e);
 
 
 alert(
-"GPS gagal"
+"Lokasi gagal"
 );
 
 
+checkinBtn.disabled=false;
+
+
 }
+
 
 
 };
 
 
-}
 
 
 
@@ -271,6 +295,7 @@ async function getLocation(){
 
 
 return new Promise(
+
 (resolve,reject)=>{
 
 
@@ -279,27 +304,28 @@ navigator.geolocation.getCurrentPosition(
 async(pos)=>{
 
 
-locationData.lat =
+currentLocation.lat =
 pos.coords.latitude;
 
 
-locationData.lon =
+currentLocation.lon =
 pos.coords.longitude;
 
 
 
-locationData.place =
+currentLocation.place =
 await getPlaceName(
 
-locationData.lat,
+currentLocation.lat,
 
-locationData.lon
+currentLocation.lon
 
 );
 
 
 
-showCheckinMarker();
+
+showMarker();
 
 
 
@@ -308,7 +334,6 @@ resolve();
 
 
 },
-
 
 reject,
 
@@ -327,10 +352,14 @@ timeout:15000
 
 
 
-});
+}
+
+);
 
 
 }
+
+
 
 
 
@@ -366,7 +395,6 @@ await res.json();
 return data.display_name || "Unknown";
 
 
-
 }
 
 catch{
@@ -374,407 +402,69 @@ catch{
 
 return "Unknown";
 
-}
-
 
 }
 
 
-
+}
 // ======================
-// SHOW CHECK IN MARKER
+// CAMERA RESULT
 // ======================
 
 
-function showCheckinMarker(){
-
-
-if(!map)
-return;
-
-
-
-if(checkinMarker){
-
-
-checkinMarker.setLatLng(
-
-[
-locationData.lat,
-locationData.lon
-]
-
-);
-
-
-}
-
-else{
-
-
-checkinMarker =
-L.marker(
-
-[
-locationData.lat,
-locationData.lon
-]
-
-)
-.addTo(map);
-
-
-}
-
-
-
-checkinMarker.bindPopup(
-"📍 Check In"
-);
-
-
-
-map.setView(
-
-[
-locationData.lat,
-locationData.lon
-],
-
-16
-
-);
-
-
-
-}
-
-
-
-
-// ======================
-// SELFIE
-// ======================
-
-
-if(selfieBtn){
-
-
-selfieBtn.onclick=()=>{
-
-
-selfieInput.click();
-
-
-};
-
-
-}
-
-
-
-
-if(selfieInput){
-
-
-selfieInput.onchange=()=>{
+selfieInput.onchange = async()=>{
 
 
 let file =
 selfieInput.files[0];
 
 
-if(!file)
-return;
-
-
-
-let reader =
-new FileReader();
-
-
-
-reader.onload=()=>{
-
-
-selfieData = true;
-
-
-
-document.getElementById(
-"stepSelfieStatus"
-).innerHTML="✔";
-
-
-
-document.getElementById(
-"stepSelfieStatus"
-).className="step-ok";
-
-
+if(!file){
 
 statusText.innerHTML=
-"📸 Selfie OK";
+"Selfie diperlukan";
+
+checkinBtn.disabled=false;
+
+return;
+
+}
 
 
 
-showSlide();
+
+// gambar hanya sebagai pengesahan
+// tidak disimpan
+
+
+selfieDone=true;
+
+
+
+await saveCheckIn();
+
 
 
 };
 
 
 
-reader.readAsDataURL(file);
-
-
-
-};
-
-
-}
-
 
 
 
 // ======================
-// SHOW SLIDE
+// SAVE CHECK IN
 // ======================
 
 
-function showSlide(){
-
-
-if(
-locationData.lat &&
-selfieData
-){
-
-
-document.getElementById(
-"slideConfirm"
-).style.display="flex";
-
-
-}
-
-
-
-}
-// ======================
-// SLIDE CONFIRM
-// ======================
-
-
-const sliderKnob =
-document.getElementById(
-"sliderKnob"
-);
-
-
-const slideTrack =
-document.getElementById(
-"slideTrack"
-);
-
-
-
-if(
-sliderKnob &&
-slideTrack
-){
-
-
-function moveSlider(x){
-
-
-let box =
-slideTrack.getBoundingClientRect();
-
-
-
-let max =
-box.width -
-sliderKnob.offsetWidth -
-12;
-
-
-
-let pos =
-x -
-box.left;
-
-
-
-if(pos<0)
-pos=0;
-
-
-if(pos>max)
-pos=max;
-
-
-
-sliderKnob.style.left =
-pos+"px";
-
-
-
-if(pos>=max-3){
-
-
-slideOK=true;
-
-
-sliderKnob.style.left =
-max+"px";
-
-
-statusText.innerHTML =
-"✅ Slide OK";
-
-
-}
-
-
-}
-
-
-
-
-sliderKnob.addEventListener(
-"touchmove",
-(e)=>{
-
-
-e.preventDefault();
-
-
-moveSlider(
-e.touches[0].clientX
-);
-
-
-},
-{
-passive:false
-}
-);
-
-
-
-let drag=false;
-
-
-sliderKnob.addEventListener(
-"mousedown",
-()=>{
-
-drag=true;
-
-}
-);
-
-
-
-document.addEventListener(
-"mousemove",
-(e)=>{
-
-
-if(drag){
-
-moveSlider(
-e.clientX
-);
-
-}
-
-
-}
-);
-
-
-
-document.addEventListener(
-"mouseup",
-()=>{
-
-drag=false;
-
-}
-);
-
-
-
-}
-
-
-
-// ======================
-// CHECK IN
-// ======================
-
-
-if(checkinBtn){
-
-
-checkinBtn.onclick =
-async()=>{
+async function saveCheckIn(){
 
 
 try{
 
 
-if(!locationData.lat){
-
-
-alert(
-"Tekan LOCATION dahulu"
-);
-
-
-return;
-
-}
-
-
-
-if(!selfieData){
-
-
-alert(
-"Ambil selfie dahulu"
-);
-
-
-return;
-
-}
-
-
-
-if(!slideOK){
-
-
-alert(
-"Slide belum lengkap"
-);
-
-
-return;
-
-}
-
-
-
-checkinBtn.disabled=true;
-
-
-
 statusText.innerHTML=
 "⏳ Simpan Check In...";
-
 
 
 
@@ -805,17 +495,19 @@ role:driver.role,
 
 
 latitude:
-locationData.lat,
+currentLocation.lat,
 
 
 longitude:
-locationData.lon,
+currentLocation.lon,
 
 
 location:
-locationData.place,
+currentLocation.place,
 
 
+
+selfieDone:true,
 
 
 status:"Working",
@@ -830,6 +522,7 @@ trackingStatus:"Running",
 
 checkIn:
 serverTimestamp(),
+
 
 
 createdAt:
@@ -886,18 +579,16 @@ startLiveTracking();
 catch(e){
 
 
-console.log(e);
-
-
-alert(
-"Check In gagal"
+console.error(
+"CHECK IN ERROR",
+e
 );
 
 
-}
+alert(
+"Check In gagal: "+e.message
+);
 
-
-finally{
 
 
 checkinBtn.disabled=false;
@@ -907,19 +598,16 @@ checkinBtn.disabled=false;
 
 
 
-};
-
-
 }
+
+
+
 
 
 
 // ======================
 // CHECK OUT
 // ======================
-
-
-if(checkoutBtn){
 
 
 checkoutBtn.onclick =
@@ -940,7 +628,7 @@ localStorage.getItem(
 if(!id){
 
 alert(
-"Tiada Check In"
+"Tiada Check In aktif"
 );
 
 return;
@@ -956,6 +644,7 @@ statusText.innerHTML=
 
 let pos =
 await new Promise(
+
 (resolve,reject)=>{
 
 
@@ -968,7 +657,10 @@ enableHighAccuracy:true
 );
 
 
-});
+}
+
+);
+
 
 
 
@@ -989,6 +681,7 @@ lon
 
 
 
+
 let start =
 Number(
 localStorage.getItem(
@@ -1000,8 +693,7 @@ localStorage.getItem(
 
 let totalHour =
 (Date.now()-start)
-/
-3600000;
+/3600000;
 
 
 
@@ -1019,6 +711,8 @@ totalHour-8;
 
 let otMoney =
 otHour*20;
+
+
 
 
 
@@ -1041,6 +735,7 @@ trackingStatus:"Stopped",
 
 checkOut:
 serverTimestamp(),
+
 
 
 checkoutLatitude:lat,
@@ -1070,6 +765,7 @@ otMoney.toFixed(2)
 )
 
 
+
 }
 
 );
@@ -1083,9 +779,6 @@ stopLiveTracking();
 
 
 localStorage.clear();
-
-
-attendanceID=null;
 
 
 
@@ -1113,10 +806,12 @@ alert(
 }
 
 
+
 };
 
 
-}
+
+
 
 
 
@@ -1124,6 +819,10 @@ alert(
 // ======================
 // LIVE TRACKING
 // ======================
+
+
+let watchID=null;
+
 
 
 function startLiveTracking(){
@@ -1149,38 +848,8 @@ pos.coords.longitude;
 
 
 
-if(lastLat){
-
-
-let distance =
-calculateDistance(
-lastLat,
-lastLon,
-lat,
-lon
-);
-
-
-
-if(distance<500)
-return;
-
-
-
-}
-
-
-
-lastLat=lat;
-
-lastLon=lon;
-
-
-
-if(map){
-
-
 if(driverMarker){
+
 
 driverMarker.setLatLng(
 [
@@ -1202,7 +871,9 @@ lat,
 lon
 ]
 )
+
 .addTo(map)
+
 .bindPopup(
 "🚗 Driver"
 );
@@ -1211,8 +882,6 @@ lon
 }
 
 
-
-}
 
 
 
@@ -1228,14 +897,20 @@ db,
 
 {
 
-attendanceID,
+
+attendanceID:attendanceID,
+
 
 latitude:lat,
 
+
 longitude:lon,
+
 
 createdAt:
 serverTimestamp()
+
+
 
 }
 
@@ -1244,6 +919,7 @@ serverTimestamp()
 
 
 }
+
 
 
 },
@@ -1251,21 +927,28 @@ serverTimestamp()
 
 (error)=>{
 
+
 console.log(
-"GPS error",
+"Tracking error",
 error
 );
+
 
 },
 
 
 {
 
+
 enableHighAccuracy:true,
+
 
 maximumAge:0,
 
+
 timeout:10000
+
+
 
 }
 
@@ -1301,53 +984,104 @@ watchID=null;
 
 
 
+
+
+
 // ======================
-// DISTANCE
+// SHOW MARKER
 // ======================
 
 
-function calculateDistance(
-lat1,
-lon1,
-lat2,
-lon2
-){
+function showMarker(){
 
 
-let R=6371000;
-
-
-let p1 =
-lat1*Math.PI/180;
-
-
-let p2 =
-lat2*Math.PI/180;
-
-
-let dp =
-(lat2-lat1)*Math.PI/180;
-
-
-let dl =
-(lon2-lon1)*Math.PI/180;
+if(!map)
+return;
 
 
 
-let a =
-Math.sin(dp/2)**2+
-Math.cos(p1)*
-Math.cos(p2)*
-Math.sin(dl/2)**2;
+if(checkinMarker){
 
 
+checkinMarker.setLatLng(
 
-return R*
-2*
-Math.atan2(
-Math.sqrt(a),
-Math.sqrt(1-a)
+[
+currentLocation.lat,
+currentLocation.lon
+]
+
 );
+
+
+}
+
+else{
+
+
+checkinMarker =
+L.marker(
+
+[
+currentLocation.lat,
+currentLocation.lon
+]
+
+)
+.addTo(map)
+.bindPopup(
+"📍 Check In"
+);
+
+
+}
+
+
+
+map.setView(
+
+[
+currentLocation.lat,
+currentLocation.lon
+],
+
+16
+
+);
+
+
+}
+
+
+
+
+
+
+
+// ======================
+// LOAD ACTIVE
+// ======================
+
+
+function loadActiveAttendance(){
+
+
+let id =
+localStorage.getItem(
+"attendanceID"
+);
+
+
+
+if(id){
+
+
+attendanceID=id;
+
+
+checkoutBtn.disabled=false;
+
+
+}
 
 
 }

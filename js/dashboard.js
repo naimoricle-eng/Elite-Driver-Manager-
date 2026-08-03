@@ -333,12 +333,13 @@ return "Unknown";
 // ======================
 // CHECK IN BUTTON
 // ======================
-
-checkinBtn.onclick =
-async()=>{
+checkinBtn.onclick = async()=>{
 
 
 try{
+
+
+if(!locationData.latitude){
 
 
 statusText.innerHTML =
@@ -348,7 +349,6 @@ statusText.innerHTML =
 await getLocation();
 
 
-
 statusText.innerHTML =
 "📍 Lokasi OK";
 
@@ -356,24 +356,119 @@ statusText.innerHTML =
 selfieBtn.disabled=false;
 
 
+return;
 
 }
 
-catch(error){
+
+
+if(
+!selfieData ||
+!slideOK
+){
 
 
 alert(
-"GPS gagal"
+"Lengkapkan selfie dan slide"
 );
 
 
+return;
+
+
+}
+
+
+// sambung simpan Firestore
+
+
+statusText.innerHTML =
+"⏳ Simpan...";
+
+
+let ref =
+await addDoc(
+
+collection(db,"attendance"),
+
+{
+
+uid:user.uid,
+
+name:driver.name,
+
+email:driver.email,
+
+position:driver.position,
+
+role:driver.role,
+
+latitude:locationData.latitude,
+
+longitude:locationData.longitude,
+
+location:locationData.place,
+
+selfie:selfieData,
+
+status:"Working",
+
+driverStatus:"Driving",
+
+trackingStatus:"Running",
+
+checkIn:serverTimestamp(),
+
+createdAt:serverTimestamp()
+
+}
+
+);
+
+
+attendanceID=ref.id;
+
+
+localStorage.setItem(
+"attendanceID",
+attendanceID
+);
+
+
+localStorage.setItem(
+"checkInTime",
+Date.now()
+);
+
+
+statusText.innerHTML =
+"✅ Check In Berjaya";
+
+
+startTracking(attendanceID);
+
+startLiveTracking();
+
+
+checkoutBtn.disabled=false;
+
+
+}
+
+
+catch(error){
+
 console.log(error);
 
+alert(
+"Gagal Check In"
+);
 
 }
 
 
 };
+
 // ======================
 // SELFIE
 // ======================
@@ -617,82 +712,76 @@ e.clientX
 // ======================
 
 
-checkinBtn.onclick =
-async()=>{
-
+checkinBtn.onclick = async()=>{
 
 try{
 
 
-if(
-!locationData.latitude ||
-!selfieData ||
-!slideOK
-){
+// STEP 1 GPS
+if(!locationData.latitude){
+
+statusText.innerHTML =
+"⏳ Ambil lokasi...";
 
 
-alert(
-"Lengkapkan lokasi, selfie dan slide"
-);
+await getLocation();
+
+
+statusText.innerHTML =
+"📍 Lokasi OK";
+
+
+selfieBtn.disabled=false;
 
 
 return;
 
+}
+
+
+// STEP 2 SELFIE + SLIDE
+
+if(!selfieData || !slideOK){
+
+alert(
+"Lengkapkan selfie dan slide"
+);
+
+return;
 
 }
 
 
-
-checkinBtn.disabled=true;
-
-
+// STEP 3 SIMPAN
 
 statusText.innerHTML =
 "⏳ Simpan...";
 
 
-
 let ref =
 await addDoc(
 
-collection(
-db,
-"attendance"
-),
+collection(db,"attendance"),
 
 {
 
-
 uid:user.uid,
-
 
 name:driver.name,
 
-
 email:driver.email,
-
 
 position:driver.position,
 
-
 role:driver.role,
 
+latitude:locationData.latitude,
 
-latitude:
-locationData.latitude,
+longitude:locationData.longitude,
 
+location:locationData.place,
 
-longitude:
-locationData.longitude,
-
-
-location:
-locationData.place,
-
-
-selfie:
-selfieData,
-
+selfie:selfieData,
 
 status:"Working",
 
@@ -700,24 +789,17 @@ driverStatus:"Driving",
 
 trackingStatus:"Running",
 
+checkIn:serverTimestamp(),
 
-checkIn:
-serverTimestamp(),
-
-
-createdAt:
-serverTimestamp()
-
+createdAt:serverTimestamp()
 
 }
 
 );
 
 
-
 attendanceID =
 ref.id;
-
 
 
 localStorage.setItem(
@@ -726,26 +808,13 @@ attendanceID
 );
 
 
-
-localStorage.setItem(
-"checkInTime",
-Date.now()
-);
-
-
-
 statusText.innerHTML =
 "✅ Check In Berjaya";
 
 
+startTracking(attendanceID);
 
-// mula tracking
-
-startTracking(
-attendanceID
-);
 startLiveTracking();
-
 
 
 checkoutBtn.disabled=false;
@@ -753,20 +822,13 @@ checkoutBtn.disabled=false;
 
 }
 
-
 catch(error){
-
 
 console.log(error);
 
-
 alert(
-"Gagal Check In"
+error.message
 );
-
-
-checkinBtn.disabled=false;
-
 
 }
 
@@ -1169,9 +1231,6 @@ latest.otMoney;
 
 }
 
-
-
-}
 if(latest.driverStatus){
 
 
@@ -1179,6 +1238,9 @@ document.getElementById(
 "dashStatus"
 ).innerHTML =
 latest.driverStatus;
+
+}
+
 
 
 document.getElementById(

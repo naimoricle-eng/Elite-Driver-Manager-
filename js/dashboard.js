@@ -1,8 +1,9 @@
-import { auth, db } from "./firebase.js";
+import { auth, db, storage } from "./firebase.js";
 
 import {
 onAuthStateChanged
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+
 
 import {
 collection,
@@ -10,11 +11,19 @@ addDoc,
 doc,
 getDoc,
 getDocs,
-updateDoc,
 query,
 where,
+updateDoc,
 serverTimestamp
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+
+
+import {
+ref,
+uploadString,
+getDownloadURL
+} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-storage.js";
+
 
 import {
 startTracking,
@@ -22,185 +31,92 @@ stopTracking
 } from "./tracking.js";
 
 
-// ===============================
+
+// =====================
 // GLOBAL
-// ===============================
+// =====================
 
-let currentUser = null;
+let user=null;
 
-let driverName = "";
-let driverPosition = "";
-let driverEmail = "";
-let userRole = "driver";
+let driver={
+name:"",
+email:"",
+position:"",
+role:"driver"
+};
 
-let otRate = 20;
 
-let currentLat = null;
-let currentLon = null;
-let currentPlace = "";
+let locationData={
+lat:null,
+lon:null,
+place:""
+};
 
-let selfieFile = null;
+
+let selfieBase64=null;
 
 let map;
 let marker;
 
+let attendanceID=null;
 
-// ===============================
-// MAP INIT
-// ===============================
+
+
+// =====================
+// MAP
+// =====================
+
 
 function initMap(){
 
-    map = L.map("map").setView(
-        [3.1390,101.6869],
-        13
-    );
 
-
-    L.tileLayer(
-        "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
-        {
-            attribution:"OpenStreetMap"
-        }
-    ).addTo(map);
-
-}
-
-
-window.addEventListener(
-"load",
-()=>{
-
-    if(document.getElementById("map")){
-
-        initMap();
-
-    }
-
-});
-
-
-// ===============================
-// SEARCH PLACE
-// ===============================
-
-document.getElementById("searchBox").addEventListener(
-"change",
-async function(){
-
-    let place = this.value;
-
-
-    let response = await fetch(
-    `https://nominatim.openstreetmap.org/search?format=json&q=${place}`
-    );
-
-
-    let data = await response.json();
-
-
-    if(data.length){
-
-        let lat = data[0].lat;
-        let lon = data[0].lon;
-
-
-        map.setView(
-            [lat,lon],
-            16
-        );
-
-
-        if(marker){
-
-            map.removeLayer(marker);
-
-        }
-
-
-        marker = L.marker(
-            [lat,lon]
-        )
-        .addTo(map)
-        .bindPopup(place)
-        .openPopup();
-
-
-    }
-
-});
-
-
-// ===============================
-// STATUS
-// ===============================
-
-function updateStatus(status){
-
-    document.getElementById("status").innerHTML =
-    status;
-
-
-    document.getElementById("dashStatus").innerHTML =
-    status;
-
-
-    localStorage.setItem(
-        "status",
-        status
-    );
-
-}
-
-
-// ===============================
-// GET LOCATION NAME
-// ===============================
-
-async function getLocationName(lat,lon){
-
-try{
-
-
-let response = await fetch(
-`https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${lat}&lon=${lon}`
+map=L.map("map")
+.setView(
+[3.1390,101.6869],
+13
 );
 
 
-let data = await response.json();
 
+L.tileLayer(
 
-return data.display_name ||
-"Lokasi tidak diketahui";
+"https://tile.openstreetmap.org/{z}/{x}/{y}.png",
 
+{
+attribution:"OpenStreetMap"
+}
 
-}catch(error){
-
-
-return "Lokasi tidak diketahui";
+).addTo(map);
 
 
 }
 
 
-}
 
+window.onload=()=>{
 
-// ===============================
-// LOCATION BUTTON
-// ===============================
+if(
+document.getElementById("map")
+){
 
-document.getElementById("btn-location")
-.onclick=function(){
-
-
-if(!navigator.geolocation){
-
-alert("GPS tidak disokong");
-
-return;
+initMap();
 
 }
+
+};
+
+
+
+
+// =====================
+// GPS
+// =====================
+
+
+async function getGPS(){
+
+
+return new Promise((resolve,reject)=>{
 
 
 navigator.geolocation.getCurrentPosition(
@@ -208,109 +124,284 @@ navigator.geolocation.getCurrentPosition(
 async(pos)=>{
 
 
-currentLat =
+locationData.lat =
 pos.coords.latitude;
 
 
-currentLon =
+locationData.lon =
 pos.coords.longitude;
 
 
-currentPlace =
-await getLocationName(
-currentLat,
-currentLon
+
+locationData.place =
+await getPlaceName(
+
+locationData.lat,
+locationData.lon
+
 );
 
 
 
-alert(
-"✅ Lokasi berjaya diperoleh"
-);
-
-
-document.getElementById(
-"btn-selfie"
-).disabled=false;
+resolve(locationData);
 
 
 
 },
 
 
-()=>{
-
-alert(
-"❌ Sila benarkan lokasi"
-);
-
-},
+reject,
 
 
 {
+enableHighAccuracy:true
+}
 
-enableHighAccuracy:true,
+);
 
-timeout:10000,
 
-maximumAge:0
+});
+
 
 }
 
 
+
+
+async function getPlaceName(lat,lon){
+
+
+let res =
+await fetch(
+
+`https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${lat}&lon=${lon}`
+
 );
 
 
+let data =
+await res.json();
+
+
+return data.display_name ||
+"Unknown";
+
+
+}
+// =====================
+// SELFIE CAMERA
+// =====================
+
+
+const video =
+document.getElementById("selfieCamera");
+
+
+const canvas =
+document.getElementById("selfieCanvas");
+
+
+const preview =
+document.getElementById("selfiePreview");
+
+
+
+const selfieBtn =
+document.getElementById("openCameraBtn");
+
+
+
+let cameraStream=null;
+
+
+
+selfieBtn.onclick=async()=>{
+
+
+try{
+
+
+cameraStream =
+await navigator.mediaDevices.getUserMedia({
+
+video:{
+facingMode:"user"
+},
+
+audio:false
+
+});
+
+
+
+video.srcObject =
+cameraStream;
+
+
+
+video.style.display="block";
+
+
+
+document.getElementById(
+"checkInStatus"
+).innerHTML =
+"📷 Kamera aktif";
+
+
+}
+
+catch(error){
+
+
+console.log(error);
+
+
+alert(
+"Kamera tidak dibenarkan"
+);
+
+
+}
+
+
 };
-// ===============================
-// IMAGE COMPRESS
-// ===============================
-
-async function compressImage(file){
-
-return new Promise((resolve)=>{
 
 
-const img = new Image();
-
-const reader = new FileReader();
 
 
-reader.onload=(e)=>{
-
-img.src=e.target.result;
-
-};
+// =====================
+// CAPTURE SELFIE
+// =====================
 
 
-img.onload=()=>{
+video.onclick=()=>{
 
 
-const canvas=document.createElement("canvas");
+canvas.width =
+video.videoWidth;
 
-const ctx=canvas.getContext("2d");
+
+canvas.height =
+video.videoHeight;
 
 
-canvas.width=300;
-canvas.height=300;
+
+let ctx =
+canvas.getContext("2d");
+
 
 
 ctx.drawImage(
-img,
+
+video,
+
 0,
+
 0,
-300,
-300
+
+canvas.width,
+
+canvas.height
+
 );
 
 
-canvas.toBlob(
 
-(blob)=>{
 
-resolve(blob);
 
-},
+selfieBase64 =
+compressCanvas(canvas);
+
+
+
+preview.src =
+selfieBase64;
+
+
+
+preview.style.display="block";
+
+
+
+document.getElementById(
+"checkInStatus"
+).innerHTML =
+"✅ Selfie siap";
+
+
+};
+
+
+
+
+// =====================
+// COMPRESS IMAGE
+// =====================
+
+
+function compressCanvas(canvas){
+
+
+let maxWidth=600;
+
+
+let width=canvas.width;
+
+let height=canvas.height;
+
+
+
+if(width>maxWidth){
+
+
+height =
+height *
+(maxWidth/width);
+
+
+width=maxWidth;
+
+
+}
+
+
+
+let newCanvas =
+document.createElement(
+"canvas"
+);
+
+
+
+newCanvas.width=width;
+
+newCanvas.height=height;
+
+
+
+let ctx =
+newCanvas.getContext("2d");
+
+
+
+ctx.drawImage(
+
+canvas,
+
+0,
+
+0,
+
+width,
+
+height
+
+);
+
+
+
+return newCanvas.toDataURL(
 
 "image/jpeg",
 
@@ -319,165 +410,153 @@ resolve(blob);
 );
 
 
-};
-
-
-reader.readAsDataURL(file);
-
-
-});
-
-
 }
+// =====================
+// SLIDE CONFIRM
+// =====================
 
 
-
-async function convertToBase64(file){
-
-return new Promise((resolve,reject)=>{
-
-
-const reader=new FileReader();
-
-
-reader.onload=()=>{
-
-resolve(
-reader.result
+const slider =
+document.getElementById(
+"confirmSlider"
 );
 
-};
+
+const checkInBtn =
+document.getElementById(
+"checkInBtn"
+);
 
 
-reader.onerror=reject;
+
+let sliderOK=false;
 
 
-reader.readAsDataURL(file);
+
+slider.oninput=()=>{
 
 
-});
-
-}
+if(slider.value>=95){
 
 
-// ===============================
-// SELFIE
-// ===============================
-
-document.getElementById("selfieInput")
-.addEventListener(
-"change",
-function(e){
-
-
-if(e.target.files.length){
-
-selfieFile =
-e.target.files[0];
+sliderOK=true;
 
 
 document.getElementById(
-"stepSelfieStatus"
-).innerHTML="✔";
-
-
-document.getElementById(
-"stepSelfieStatus"
-).className="step-ok";
+"checkInStatus"
+).innerHTML =
+"✅ Confirm diterima";
 
 
 checkReady();
 
 
-}
-
-
-});
-
-
-// ===============================
-// CHECK IN BUTTON
-// ===============================
-
-document.getElementById("btn-checkin")
-.onclick=function(){
-
-
-if(!currentUser){
-
-alert(
-"Sistem belum siap"
-);
-
-return;
 
 }
-
-
-document.getElementById(
-"selfieInput"
-).click();
-
 
 };
 
 
 
-// ===============================
-// READY CHECK
-// ===============================
+
+// =====================
+// CHECK READY
+// =====================
+
 
 function checkReady(){
 
 
 if(
-currentLat &&
-selfieFile
+
+locationData.lat &&
+
+selfieBase64 &&
+
+sliderOK
+
 ){
 
 
-document.getElementById(
-"slideConfirm"
-).style.display="flex";
+checkInBtn.disabled=false;
 
 
 }
 
+}
+
+
+
+// =====================
+// UPLOAD SELFIE STORAGE
+// =====================
+
+
+async function uploadSelfie(){
+
+
+if(!selfieBase64){
+
+return null;
 
 }
 
 
 
-// ===============================
-// SLIDE CONFIRM
-// ===============================
-
-document.getElementById(
-"sliderKnob"
-)
-.addEventListener(
-"click",
-()=>{
-
-
-checkInProcess();
-
-
-});
+let fileName =
+"selfie/" +
+Date.now() +
+".jpg";
 
 
 
-// ===============================
-// CHECK IN PROCESS
-// ===============================
+let imageRef =
+ref(
+storage,
+fileName
+);
 
-async function checkInProcess(){
 
 
-if(!currentLat || !selfieFile){
+await uploadString(
+
+imageRef,
+
+selfieBase64,
+
+"data_url"
+
+);
+
+
+
+let url =
+await getDownloadURL(
+imageRef
+);
+
+
+
+return url;
+
+
+}
+// =====================
+// CHECK IN
+// =====================
+
+
+checkInBtn.onclick = async()=>{
+
+
+if(
+!user ||
+!locationData.lat ||
+!selfieBase64
+){
 
 alert(
-"Sila lengkapkan lokasi dan selfie"
+"Lengkapkan lokasi dan selfie"
 );
 
 return;
@@ -486,21 +565,29 @@ return;
 
 
 
-const compressed =
-await compressImage(
-selfieFile
-);
+checkInBtn.disabled=true;
 
 
 
-const selfie =
-await convertToBase64(
-compressed
-);
+document.getElementById(
+"checkInStatus"
+).innerHTML =
+"⏳ Menyimpan...";
 
 
 
-const q=query(
+// upload selfie
+
+let selfieURL =
+await uploadSelfie();
+
+
+
+
+// semak attendance aktif
+
+let q =
+query(
 
 collection(
 db,
@@ -510,7 +597,7 @@ db,
 where(
 "uid",
 "==",
-currentUser.uid
+user.uid
 ),
 
 where(
@@ -523,7 +610,7 @@ where(
 
 
 
-const snap =
+let snap =
 await getDocs(q);
 
 
@@ -532,18 +619,21 @@ if(!snap.empty){
 
 
 alert(
-"❌ Masih ada Check Out belum dibuat"
+"Anda masih Check In"
 );
 
 
 return;
 
-
 }
 
 
 
-const ref =
+
+// simpan Firestore
+
+
+let docRef =
 await addDoc(
 
 collection(
@@ -554,47 +644,45 @@ db,
 {
 
 
-uid:
-currentUser.uid,
+uid:user.uid,
 
 
 name:
-driverName,
-
-
-position:
-driverPosition,
+driver.name,
 
 
 email:
-driverEmail,
+driver.email,
+
+
+position:
+driver.position,
 
 
 role:
-userRole,
+driver.role,
 
 
-selfie:selfie,
+selfieURL:
+selfieURL,
 
 
 latitude:
-currentLat,
+locationData.lat,
 
 
 longitude:
-currentLon,
+locationData.lon,
 
 
 location:
-currentPlace,
+locationData.place,
 
 
-status:
-"Working",
+status:"Working",
 
 
-trackingStatus:
-"Running",
+trackingStatus:"Running",
 
 
 checkIn:
@@ -607,106 +695,65 @@ serverTimestamp()
 
 }
 
-
 );
 
 
 
+
+attendanceID =
+docRef.id;
+
+
+
 localStorage.setItem(
+
 "attendanceID",
-ref.id
+
+attendanceID
+
 );
-
-
-
 localStorage.setItem(
-"checkIn",
+"checkInTime",
 new Date()
 );
 
 
 
 localStorage.setItem(
-"checkinPlace",
-currentPlace
+
+"status",
+
+"Working"
+
 );
 
 
 
-updateStatus(
-"Driving"
-);
-
-
-
 document.getElementById(
-"checkinData"
-).innerHTML=
-
-"CHECK IN : "+
-new Date()
-.toLocaleTimeString();
+"checkInStatus"
+).innerHTML =
+"✅ Check In Berjaya";
 
 
 
-document.getElementById(
-"checkinLocation"
-).innerHTML=
 
-"📍 CHECK IN LOCATION : "+
-currentPlace;
-
-
-
-document.getElementById(
-"btn-checkin"
-).disabled=true;
-
-
-
-document.getElementById(
-"btn-checkout"
-).disabled=false;
-
-
-
-document.getElementById(
-"slideConfirm"
-).style.display="none";
-
-
-
-await saveTracking(
-currentLat,
-currentLon,
-"MULA"
-);
-
-
+// mula tracking
 
 startTracking();
 
 
 
-alert(
-"✅ Check In Berjaya"
-);
+};
 
 
 
-}
+
+// =====================
+// RESTORE SESSION
+// =====================
 
 
-
-// ===============================
-// SAVE TRACKING
-// ===============================
-
-async function saveTracking(
-lat,
-lon,
-status
-){
+async function restoreSession(){
 
 
 let id =
@@ -720,56 +767,209 @@ if(!id)return;
 
 
 
-await addDoc(
+let snap =
+await getDoc(
 
-collection(
+doc(
 db,
 "attendance",
-id,
-"tracking"
-),
-
-{
-
-
-latitude:lat,
-
-
-longitude:lon,
-
-
-place:
-await getLocationName(
-lat,
-lon
-),
-
-
-status:status,
-
-
-time:
-serverTimestamp()
-
-
-}
-
+id
+)
 
 );
 
 
-}
-// ===============================
-// CHECK OUT
-// ===============================
 
-document.getElementById("btn-checkout")
-.onclick=function(){
+if(
+snap.exists()
+){
+
+let data =
+snap.data();
+
+
+
+if(
+data.status==="Working"
+){
+
+
+attendanceID=id;
+
+
+startTracking();
+
+
+
+document.getElementById(
+"checkInStatus"
+).innerHTML =
+"🚗 Sedang bekerja";
+
+
+}
+
+}
+
+
+
+}
+
+
+
+
+// =====================
+// LOAD USER
+// =====================
+
+
+onAuthStateChanged(
+
+auth,
+
+async(current)=>{
+
+
+if(!current){
+
+location.href="login.html";
+
+return;
+
+}
+
+
+
+user=current;
+
+
+
+let snap =
+await getDoc(
+
+doc(
+db,
+"users",
+user.uid
+)
+
+);
+
+
+
+if(
+snap.exists()
+){
+
+
+let data =
+snap.data();
+
+
+
+driver.name =
+data.name || "";
+
+
+driver.email =
+data.email || user.email;
+
+
+driver.position =
+data.position || "";
+
+
+driver.role =
+data.role || "driver";
+
+
+}
+
+
+
+
+restoreSession();
+
+
+
+}
+
+);
+// =====================
+// CHECK OUT
+// =====================
+
+
+const checkOutBtn =
+document.getElementById(
+"checkOutBtn"
+);
+
+
+
+checkOutBtn.onclick = async()=>{
+
+
+if(!attendanceID){
+
+
+attendanceID =
+localStorage.getItem(
+"attendanceID"
+);
+
+
+}
+
+
+
+if(!attendanceID){
+
+
+alert(
+"Tiada Check In aktif"
+);
+
+
+return;
+
+
+}
+
+
+
+try{
+
+
+document.getElementById(
+"checkInStatus"
+).innerHTML =
+"⏳ Check Out...";
+
+
+
+// ambil lokasi semasa
+
+let pos =
+await new Promise(
+(resolve,reject)=>{
 
 
 navigator.geolocation.getCurrentPosition(
 
-async(pos)=>{
+resolve,
+
+reject,
+
+{
+enableHighAccuracy:true
+}
+
+);
+
+
+});
+
 
 
 let lat =
@@ -780,51 +980,47 @@ let lon =
 pos.coords.longitude;
 
 
+
 let place =
-await getLocationName(
+await getPlaceName(
 lat,
 lon
 );
 
 
 
-let id =
+
+// ambil masa check in
+
+let start =
 localStorage.getItem(
-"attendanceID"
+"checkInTime"
 );
 
 
 
-if(!id){
+if(!start){
 
-alert(
-"Tiada Check In"
-);
-
-return;
+start =
+Date.now();
 
 }
 
 
 
-let checkIn =
-new Date(
-localStorage.getItem("checkIn")
-);
-
-
-
-let checkOut =
-new Date();
-
-
-
 let totalHour =
-(checkOut-checkIn)/3600000;
+(
+Date.now()
+-
+new Date(start)
+)
+/
+3600000;
 
 
 
 let otHour=0;
+
 
 
 if(totalHour>8){
@@ -837,7 +1033,9 @@ totalHour-8;
 
 
 let otMoney =
-otHour * otRate;
+otHour * 20;
+
+
 
 
 
@@ -846,7 +1044,7 @@ await updateDoc(
 doc(
 db,
 "attendance",
-id
+attendanceID
 ),
 
 {
@@ -861,7 +1059,15 @@ trackingStatus:
 
 
 checkOut:
-checkOut,
+serverTimestamp(),
+
+
+checkoutLatitude:
+lat,
+
+
+checkoutLongitude:
+lon,
 
 
 checkoutLocation:
@@ -888,24 +1094,19 @@ otMoney.toFixed(2)
 
 }
 
-
 );
 
 
 
-localStorage.setItem(
-"checkOut",
-checkOut
-);
+
+// stop tracking
+
+stopTracking();
 
 
 
-localStorage.setItem(
-"checkoutPlace",
-place
-);
 
-
+// clear session
 
 localStorage.removeItem(
 "attendanceID"
@@ -913,447 +1114,38 @@ localStorage.removeItem(
 
 
 
-stopTracking();
-
-
-
-updateStatus(
-"Standby"
+localStorage.removeItem(
+"checkInTime"
 );
 
 
 
-document.getElementById(
-"checkoutData"
-).innerHTML=
+attendanceID=null;
 
-"CHECK OUT : "+
-checkOut.toLocaleTimeString();
 
 
 
 document.getElementById(
-"checkoutLocation"
-).innerHTML=
-
-"📍 CHECK OUT LOCATION : "+
-place;
+"checkInStatus"
+).innerHTML =
+"✅ Check Out Berjaya";
 
 
 
-document.getElementById(
-"btn-checkin"
-).disabled=false;
+}
+
+catch(error){
 
 
-
-document.getElementById(
-"btn-checkout"
-).disabled=true;
-
+console.log(error);
 
 
 alert(
-"✅ Check Out Berjaya"
+"Gagal Check Out"
 );
-
-
-
-},
-
-()=>{
-
-
-alert(
-"❌ Tidak dapat ambil lokasi"
-);
-
-
-},
-
-{
-
-enableHighAccuracy:true,
-
-timeout:10000
-
-}
-
-
-);
-
-
-};
-
-
-
-// ===============================
-// LOAD USER FIREBASE
-// ===============================
-
-onAuthStateChanged(
-auth,
-async(user)=>{
-
-
-if(!user){
-
-location.href="login.html";
-
-return;
-
-}
-
-
-
-currentUser=user;
-
-
-
-let snap =
-await getDoc(
-
-doc(
-db,
-"users",
-user.uid
-)
-
-);
-
-
-
-if(snap.exists()){
-
-
-let data =
-snap.data();
-
-
-
-driverName =
-data.name || "";
-
-
-driverPosition =
-data.position || "";
-
-
-driverEmail =
-data.email || "";
-
-
-userRole =
-data.role || "driver";
-
-
-otRate =
-data.otRate || 20;
-
-
-
-restoreStatus();
 
 
 }
-
-
-
-});
-
-
-
-
-// ===============================
-// RESTORE STATUS
-// ===============================
-
-async function restoreStatus(){
-
-
-let q=query(
-
-collection(
-db,
-"attendance"
-),
-
-where(
-"uid",
-"==",
-currentUser.uid
-),
-
-where(
-"status",
-"==",
-"Working"
-)
-
-);
-
-
-
-let snap =
-await getDocs(q);
-
-
-
-if(!snap.empty){
-
-
-let item =
-snap.docs[0];
-
-
-
-localStorage.setItem(
-"attendanceID",
-item.id
-);
-
-
-
-updateStatus(
-"Driving"
-);
-
-
-
-document.getElementById(
-"btn-checkin"
-).disabled=true;
-
-
-
-document.getElementById(
-"btn-checkout"
-).disabled=false;
-
-
-
-startTracking();
-
-
-
-}else{
-
-
-updateStatus(
-"Standby"
-);
-
-
-stopTracking();
-
-
-}
-
-
-
-startTimer();
-
-
-}
-
-
-
-// ===============================
-// WORK TIMER + OT
-// ===============================
-
-function startTimer(){
-
-
-setInterval(()=>{
-
-
-let checkIn =
-localStorage.getItem(
-"checkIn"
-);
-
-
-
-if(!checkIn)return;
-
-
-
-let total =
-(new Date()-new Date(checkIn))
-/3600000;
-
-
-
-let ot=0;
-
-
-
-if(total>8){
-
-ot=total-8;
-
-}
-
-
-
-let money =
-ot*otRate;
-
-
-
-document.getElementById(
-"dashHour"
-).innerHTML=
-
-total.toFixed(2)+
-" jam";
-
-
-
-document.getElementById(
-"dashOT"
-).innerHTML=
-
-"RM "+
-money.toFixed(2);
-
-
-
-document.getElementById(
-"totalData"
-).innerHTML=
-
-"TOTAL WORKING : "+
-total.toFixed(2)+
-" jam";
-
-
-
-document.getElementById(
-"otData"
-).innerHTML=
-
-"OT : "+
-ot.toFixed(2)+
-" jam";
-
-
-
-document.getElementById(
-"otMoney"
-).innerHTML=
-
-"TOTAL OT : RM "+
-money.toFixed(2);
-
-
-
-},60000);
-
-
-}
-
-
-
-// ===============================
-// DRIVER STATUS
-// ===============================
-
-document.getElementById(
-"driverStatus"
-)
-.onchange=async function(){
-
-
-let status =
-this.value;
-
-
-
-updateStatus(
-status
-);
-
-
-
-let id =
-localStorage.getItem(
-"attendanceID"
-);
-
-
-
-if(id){
-
-await updateDoc(
-
-doc(
-db,
-"attendance",
-id
-),
-
-{
-
-currentStatus:
-status
-
-}
-
-);
-
-}
-
-
-};
-
-
-
-// ===============================
-// GOOGLE MAP BUTTON
-// ===============================
-
-document.getElementById(
-"btn-map"
-)
-.onclick=function(){
-
-
-window.open(
-"https://maps.google.com",
-"_blank"
-);
-
-
-};
-
-// ===============================
-// GO TO SAVED PLACES
-// ===============================
-
-document.getElementById("btn-places")
-.onclick=function(){
-
-window.location.href="saved-location.html";
-
-};
-
-
-// ===============================
-// PLACES BUTTON
-// ===============================
-
-document.getElementById(
-"btn-places"
-)
-.onclick=function(){
-
-
-window.open(
-"https://maps.google.com",
-"_blank"
-);
 
 
 };

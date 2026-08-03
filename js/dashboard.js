@@ -497,8 +497,7 @@ new FileReader();
 reader.onload=()=>{
 
 
-selfieData =
-reader.result;
+selfieData = true;
 
 
 
@@ -817,7 +816,6 @@ location:
 locationData.place,
 
 
-selfie:selfieData,
 
 
 status:"Working",

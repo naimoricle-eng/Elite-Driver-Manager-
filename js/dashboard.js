@@ -6,12 +6,17 @@ onAuthStateChanged
 
 
 import {
-doc,
-getDoc,
-addDoc,
-collection,
-updateDoc,
-serverTimestamp
+  doc,
+  getDoc,
+  addDoc,
+  collection,
+  updateDoc,
+  serverTimestamp,
+  query,
+  where,
+  orderBy,
+  limit,
+  getDocs
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 
@@ -195,6 +200,7 @@ window.location.href =
 
 
 loadActiveAttendance();
+await loadAttendanceToday();
 
 
 
@@ -597,6 +603,7 @@ checkoutBtn.disabled=false;
 startTracking(
 attendanceID
 );
+await loadAttendanceToday();
 
 
 
@@ -807,7 +814,8 @@ stopTracking();
 
 
 
-localStorage.clear();
+localStorage.removeItem("attendanceID");
+localStorage.removeItem("checkInTime");
 
 
 
@@ -943,4 +951,48 @@ checkoutBtn.disabled=false;
 }
 
 
+}
+async function loadAttendanceToday() {
+
+  const id = localStorage.getItem("attendanceID");
+
+  if (!id) return;
+
+  const snap = await getDoc(doc(db, "attendance", id));
+
+  if (!snap.exists()) return;
+
+  const data = snap.data();
+
+  document.getElementById("date").innerHTML =
+    "DATE : " +
+    (data.createdAt?.toDate().toLocaleDateString() || "-");
+
+  document.getElementById("checkinData").innerHTML =
+    "CHECK IN : " +
+    (data.checkIn?.toDate().toLocaleTimeString() || "-");
+
+  document.getElementById("checkinLocation").innerHTML =
+    "📍 CHECK IN LOCATION : " +
+    (data.location || "-");
+
+  document.getElementById("checkoutData").innerHTML =
+    "CHECK OUT : " +
+    (data.checkOut?.toDate().toLocaleTimeString() || "-");
+
+  document.getElementById("checkoutLocation").innerHTML =
+    "📍 CHECK OUT LOCATION : " +
+    (data.checkoutLocation || "-");
+
+  document.getElementById("totalData").innerHTML =
+    "TOTAL WORKING : " +
+    (data.totalHour ?? "-") + " Jam";
+
+  document.getElementById("otData").innerHTML =
+    "OT : " +
+    (data.otHour ?? "-") + " Jam";
+
+  document.getElementById("otMoney").innerHTML =
+    "TOTAL OT : RM " +
+    (data.otMoney ?? 0);
 }

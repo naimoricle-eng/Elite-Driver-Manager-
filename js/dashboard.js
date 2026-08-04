@@ -992,15 +992,6 @@ async function loadAttendanceToday() {
   if(!user) return;
 
 
-  const q = query(
-
-    collection(db,"attendance"),
-
-    where(
-      "uid",
-      "==",
-      user.uid
-    ),
 
 const q = query(
 

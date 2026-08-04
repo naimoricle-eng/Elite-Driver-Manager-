@@ -195,8 +195,13 @@ let lon = 101.6869;
 
 if(choice){
 
+// FORCE GOOGLE MAPS APP
 window.location.href =
-"google.navigation:q=" + lat + "," + lon;
+"intent://maps.google.com/?q="
++ lat + "," + lon
++ "#Intent;scheme=https;"
++ "package=com.google.android.apps.maps;"
++ "end";
 
 }else{
 

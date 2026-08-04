@@ -192,17 +192,19 @@ let choice = confirm(
 let lat = 3.1390;
 let lon = 101.6869;
 
+
 if(choice){
 
 // Google Maps
 window.location.href =
-`intent://maps.google.com/?q=${lat},${lon}#Intent;scheme=https;package=com.google.android.apps.maps;end`;
+"https://maps.google.com/?q=" + lat + "," + lon;
+
 
 }else{
 
 // Waze
 window.location.href =
-`intent://waze.com/ul?ll=${lat},${lon}&navigate=yes#Intent;scheme=https;package=com.waze;end`;
+"https://waze.com/ul?ll=" + lat + "," + lon + "&navigate=yes";
 
 }
 

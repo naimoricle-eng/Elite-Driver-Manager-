@@ -21,6 +21,11 @@ href="css/style.css">
 
 <style>
 
+#wazeGoBtn img{
+width:28px;
+height:28px;
+}
+
 
 #map{
 
@@ -72,7 +77,31 @@ display:none;
 z-index:9999;
 
 }
+.search-container{
+position:relative;
+width:100%;
+}
 
+#searchBox{
+width:100%;
+padding:12px;
+padding-right:50px;
+font-size:16px;
+border-radius:8px;
+border:1px solid #ccc;
+}
+
+#wazeGoBtn{
+position:absolute;
+right:5px;
+top:50%;
+transform:translateY(-50%);
+border:none;
+background:none;
+padding:5px;
+font-size:24px;
+cursor:pointer;
+}
 
 
 </style>
@@ -285,14 +314,18 @@ style="display:none"
 
 
 
+<div class="search-container">
+
 <input
-
 id="searchBox"
-
 placeholder="Taip tempat..."
-
 >
 
+<button id="wazeGoBtn" type="button">
+<img src="images/waze.png">
+</button>
+
+</div>
 
 
 <div id="map"></div>

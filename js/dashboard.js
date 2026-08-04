@@ -291,25 +291,16 @@ await loadAttendanceToday();
 
 });
 
-if(driverStatus){
-
 driverStatus.onchange = async()=>{
 
-console.log("STATUS DIPILIH:", driverStatus.value);
-
-
 let id =
-attendanceID ||
 localStorage.getItem("attendanceID");
 
 
-console.log("ATTENDANCE ID:", id);
-
-
 if(!id){
-alert("Tiada attendance aktif");
 return;
 }
+
 
 await updateDoc(
 

@@ -195,16 +195,13 @@ let lon = 101.6869;
 
 if(choice){
 
-// Google Maps
 window.location.href =
-"https://maps.google.com/?q=" + lat + "," + lon;
-
+"google.navigation:q=" + lat + "," + lon;
 
 }else{
 
-// Waze
 window.location.href =
-"https://waze.com/ul?ll=" + lat + "," + lon + "&navigate=yes";
+"waze://?ll=" + lat + "," + lon + "&navigate=yes";
 
 }
 

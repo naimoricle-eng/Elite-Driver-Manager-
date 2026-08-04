@@ -228,10 +228,8 @@ id
 ),
 
 {
-
 driverStatus:
 driverStatus.value
-
 }
 
 );
@@ -241,9 +239,20 @@ statusText.innerHTML =
 "Status : " + driverStatus.value;
 
 
+// UPDATE CARD STATUS
+const dashStatus =
+document.getElementById("dashStatus");
+
+
+if(dashStatus){
+
+dashStatus.innerHTML =
+driverStatus.value;
+
+}
+
+
 };
-
-
 
 
 // ======================
@@ -859,6 +868,7 @@ statusText.innerHTML=
 
 
 checkoutBtn.disabled=true;
+await loadAttendanceToday();
 
 
 
@@ -1041,6 +1051,16 @@ querySnap.docs[querySnap.docs.length - 1];
   data.driverStatus;
 
 }
+document.getElementById("dashStatus").innerHTML =
+data.driverStatus || "Standby";
+
+
+document.getElementById("dashHour").innerHTML =
+(data.totalHour ?? 0) + " jam";
+
+
+document.getElementById("dashOT").innerHTML =
+"RM " + (data.otMoney ?? 0);
 
 
   document.getElementById("date").innerHTML =

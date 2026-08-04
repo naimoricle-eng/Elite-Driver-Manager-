@@ -107,12 +107,18 @@ document.getElementById(
 const driverStatus =
 document.getElementById("driverStatus");
 
+const wazeGoBtn =
+document.getElementById("wazeGoBtn");
 
+
+const searchBox =
+document.getElementById("searchBox");
 
 
 // ======================
 // LOGIN
 // ======================
+
 
 
 onAuthStateChanged(
@@ -212,7 +218,63 @@ window.location.href =
 
 };
 
+wazeGoBtn.onclick = async()=>{
 
+let address =
+searchBox.value.trim();
+
+
+if(!address){
+
+alert("Sila taip tempat dahulu");
+return;
+
+}
+
+
+try{
+
+let res =
+await fetch(
+`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(address)}`
+);
+
+
+let data =
+await res.json();
+
+
+if(data.length===0){
+
+alert("Lokasi tidak dijumpai");
+return;
+
+}
+
+
+let lat =
+data[0].lat;
+
+
+let lon =
+data[0].lon;
+
+
+window.location.href =
+`waze://?ll=${lat},${lon}&navigate=yes`;
+
+
+}
+
+catch(e){
+
+console.log(e);
+
+alert("Gagal cari lokasi");
+
+}
+
+};
 
 placesBtn.onclick = ()=>{
 
@@ -717,6 +779,13 @@ async()=>{
 
 
 try{
+  const confirmCheckout = confirm(
+"Anda pasti mahu Check Out?\n\nSelepas Check Out:\n• Tracking akan dihentikan\n• Waktu kerja akan dikira\n• Data akan disimpan"
+);
+
+if (!confirmCheckout) {
+    return;
+}
 
 
 let id =

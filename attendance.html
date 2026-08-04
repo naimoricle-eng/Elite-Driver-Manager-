@@ -133,22 +133,22 @@ data.checkOut;
 
 let statusColor = "#999";
 
-switch(data.status){
+switch(data.driverStatus){
 
-case "Working":
+case "Driving":
 statusColor = "#00e676";
 break;
 
-case "Completed":
-statusColor = "#03a9f4";
-break;
-
-case "Leave":
+case "Break":
 statusColor = "#ff9800";
 break;
 
-case "MC":
-statusColor = "#f44336";
+case "Meeting":
+statusColor = "#03a9f4";
+break;
+
+case "Standby":
+statusColor = "#999";
 break;
 
 }
@@ -197,7 +197,7 @@ RM ${data.otMoney || 0}
 🗺️ VIEW ROUTE
 </button>
 <span style="color:${statusColor};font-weight:bold;">
-${data.status || "-"}
+${data.driverStatus || "-"}
 </span>
 
 

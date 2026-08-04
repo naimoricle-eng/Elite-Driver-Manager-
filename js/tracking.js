@@ -18,6 +18,13 @@ let lastLon = null;
 // Default movement threshold in meters. Change as needed.
 const DEFAULT_MOVE_THRESHOLD_METERS = 50;
 
+// Default geolocation options
+const DEFAULT_GEO_OPTIONS = {
+  enableHighAccuracy: true,
+  maximumAge: 0,
+  timeout: 10000
+};
+
 // ======================
 // DISTANCE CALCULATOR
 // ======================
@@ -42,7 +49,7 @@ function distance(lat1, lon1, lat2, lon2) {
 // ======================
 
 // startTracking(attendanceID, options)
-// options:{ threshold: number } - movement threshold in meters
+// options:{ threshold: number, enableHighAccuracy: boolean, timeout: number, maximumAge: number }
 export function startTracking(attendanceID, options = {}) {
   if (watchID !== null) return;
 
@@ -56,7 +63,20 @@ export function startTracking(attendanceID, options = {}) {
     ? options.threshold
     : DEFAULT_MOVE_THRESHOLD_METERS;
 
-  console.log("Starting tracking for attendanceID:", attendanceID, "threshold(m):", threshold);
+  // Geolocation options (allow overriding defaults)
+  const geoOptions = {
+    enableHighAccuracy: (options && typeof options.enableHighAccuracy === 'boolean')
+      ? options.enableHighAccuracy
+      : DEFAULT_GEO_OPTIONS.enableHighAccuracy,
+    maximumAge: (options && typeof options.maximumAge === 'number')
+      ? options.maximumAge
+      : DEFAULT_GEO_OPTIONS.maximumAge,
+    timeout: (options && typeof options.timeout === 'number')
+      ? options.timeout
+      : DEFAULT_GEO_OPTIONS.timeout
+  };
+
+  console.log("Starting tracking for attendanceID:", attendanceID, "threshold(m):", threshold, "geoOptions:", geoOptions);
 
   if (!('geolocation' in navigator)) {
     console.error('Geolocation is not available in this browser.');
@@ -119,11 +139,7 @@ export function startTracking(attendanceID, options = {}) {
     (error) => {
       console.error('GPS error', error);
     },
-    {
-      enableHighAccuracy: true,
-      maximumAge: 0,
-      timeout: 10000
-    }
+    geoOptions
   );
 }
 

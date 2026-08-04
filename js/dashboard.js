@@ -182,12 +182,31 @@ data.role || "driver";
 
 
 initMap();
+
 mapBtn.onclick = ()=>{
 
-window.open(
-"https://maps.google.com",
-"_blank"
+let choice = confirm(
+"OK = Google Maps\nCancel = Waze"
 );
+
+
+let lat = 3.1390;
+let lon = 101.6869;
+
+
+if(choice){
+
+// Google Maps
+window.location.href =
+`https://www.google.com/maps/dir/?api=1&destination=${lat},${lon}`;
+
+}else{
+
+// Waze
+window.location.href =
+`https://waze.com/ul?ll=${lat},${lon}&navigate=yes`;
+
+}
 
 };
 

@@ -1012,7 +1012,21 @@ async function loadAttendanceToday() {
   );
 
 
-  const querySnap = await getDocs(q);
+ let querySnap;
+
+try{
+
+querySnap = await getDocs(q);
+
+}
+
+catch(e){
+
+console.log("ATTENDANCE ERROR:", e.message);
+
+return;
+
+}
 
 
   if(querySnap.empty){

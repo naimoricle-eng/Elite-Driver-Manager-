@@ -1002,14 +1002,17 @@ async function loadAttendanceToday() {
       user.uid
     ),
 
-    orderBy(
-      "createdAt",
-      "desc"
-    ),
+const q = query(
 
-    limit(1)
+collection(db,"attendance"),
 
-  );
+where(
+"uid",
+"==",
+user.uid
+)
+
+);
 
 
  let querySnap;
@@ -1017,6 +1020,9 @@ async function loadAttendanceToday() {
 try{
 
 querySnap = await getDocs(q);
+
+console.log("USER:", user.uid);
+console.log("DOC:", querySnap.docs);
 
 }
 
@@ -1034,7 +1040,8 @@ return;
   }
 
 
-  const docSnap = querySnap.docs[0];
+const docSnap =
+querySnap.docs[querySnap.docs.length - 1];
 
   const data = docSnap.data();
   if(data.driverStatus){

@@ -380,6 +380,7 @@ maxZoom:19
 
 
 
+
 // ======================
 // CHECK IN BUTTON
 // ======================
@@ -422,7 +423,6 @@ selfieInput.click();
 
 
 }
-
 
 
 catch(e){
@@ -737,6 +737,7 @@ await loadAttendanceToday();
 
 
 
+
 }
 
 
@@ -846,7 +847,6 @@ lon
 
 
 
-
 let start =
 Number(
 localStorage.getItem(
@@ -951,6 +951,7 @@ statusText.innerHTML=
 "✅ Check Out Berjaya";
 
 
+
 checkoutBtn.disabled=true;
 await loadAttendanceToday();
 
@@ -974,6 +975,8 @@ alert(
 
 
 };
+
+
 
 
 
@@ -1053,6 +1056,8 @@ currentLocation.lon
 
 
 
+
+
 // ======================
 // LOAD ACTIVE
 // ======================
@@ -1085,126 +1090,77 @@ async function loadAttendanceToday() {
 
   if(!user) return;
 
+  const q = query(
+    collection(db, "attendance"),
+    where("uid", "==", user.uid),
+    where("status", "==", "Working"),
+    limit(1)
+  );
 
-
-const q = query(
-collection(db,"attendance"),
-where("uid","==",user.uid),
-where("status","==","Working"),
-limit(1)
-);
-
- let querySnap;
-
-try{
-
-querySnap = await getDocs(q);
-
-console.log("USER:", user.uid);
-console.log("DOC:", querySnap.docs);
-
-}
-
-catch(e){
-
-console.log("ATTENDANCE ERROR:", e.message);
-
-return;
-
-}
-
-
-  if(querySnap.empty){
+  let querySnap;
+  try {
+    querySnap = await getDocs(q);
+    console.log("USER:", user.uid);
+    console.log("DOC:", querySnap.docs);
+  } catch (e) {
+    console.log("ATTENDANCE ERROR:", e.message);
     return;
   }
 
+  if (querySnap.empty) {
+    return;
+  }
 
-const docSnap =
-querySnap.docs[querySnap.docs.length - 1];
-
+  const docSnap = querySnap.docs[querySnap.docs.length - 1];
   const data = docSnap.data();
-  if(data.driverStatus){
 
-  driverStatus.value =
-  data.driverStatus;
+  // Keep local state in sync so other flows (checkout/update) work
+  attendanceID = docSnap.id;
+  try { localStorage.setItem("attendanceID", attendanceID); } catch (e) { /* ignore storage errors */ }
 
-}
-document.getElementById("dashStatus").innerHTML =
-data.driverStatus || "Standby";
+  if (data.driverStatus && driverStatus) {
+    driverStatus.value = data.driverStatus;
+  }
 
+  const dashStatusEl = document.getElementById("dashStatus");
+  if (dashStatusEl) dashStatusEl.innerHTML = data.driverStatus || "Standby";
 
-document.getElementById("dashHour").innerHTML =
-(data.totalHour ?? 0) + " jam";
+  const dashHourEl = document.getElementById("dashHour");
+  if (dashHourEl) dashHourEl.innerHTML = (data.totalHour ?? 0) + " jam";
 
+  const dashOTEl = document.getElementById("dashOT");
+  if (dashOTEl) dashOTEl.innerHTML = "RM " + (data.otMoney ?? 0);
 
-document.getElementById("dashOT").innerHTML =
-"RM " + (data.otMoney ?? 0);
+  const dateEl = document.getElementById("date");
+  if (dateEl) {
+    const createdAt = data.createdAt?.toDate?.();
+    dateEl.innerHTML = "DATE : " + (createdAt ? createdAt.toLocaleDateString() : "-");
+  }
 
+  const checkinDataEl = document.getElementById("checkinData");
+  if (checkinDataEl) {
+    const checkInDate = data.checkIn?.toDate?.();
+    checkinDataEl.innerHTML = "CHECK IN : " + (checkInDate ? checkInDate.toLocaleTimeString() : "-");
+  }
 
-  document.getElementById("date").innerHTML =
-    "DATE : " +
-    (
-      data.createdAt?.toDate()
-      .toLocaleDateString()
-      || "-"
-    );
+  const checkinLocationEl = document.getElementById("checkinLocation");
+  if (checkinLocationEl) checkinLocationEl.innerHTML = "📍 CHECK IN LOCATION : " + (data.location || "-");
 
+  const checkoutDataEl = document.getElementById("checkoutData");
+  if (checkoutDataEl) {
+    const checkOutDate = data.checkOut?.toDate?.();
+    checkoutDataEl.innerHTML = "CHECK OUT : " + (checkOutDate ? checkOutDate.toLocaleTimeString() : "-");
+  }
 
-  document.getElementById("checkinData").innerHTML =
-    "CHECK IN : " +
-    (
-      data.checkIn?.toDate()
-      .toLocaleTimeString()
-      || "-"
-    );
+  const checkoutLocationEl = document.getElementById("checkoutLocation");
+  if (checkoutLocationEl) checkoutLocationEl.innerHTML = "📍 CHECK OUT LOCATION : " + (data.checkoutLocation || "-");
 
+  const totalDataEl = document.getElementById("totalData");
+  if (totalDataEl) totalDataEl.innerHTML = "TOTAL WORKING : " + (data.totalHour ?? "-") + " Jam";
 
-  document.getElementById("checkinLocation").innerHTML =
-    "📍 CHECK IN LOCATION : " +
-    (
-      data.location
-      || "-"
-    );
+  const otDataEl = document.getElementById("otData");
+  if (otDataEl) otDataEl.innerHTML = "OT : " + (data.otHour ?? "-") + " Jam";
 
-
-  document.getElementById("checkoutData").innerHTML =
-    "CHECK OUT : " +
-    (
-      data.checkOut?.toDate()
-      .toLocaleTimeString()
-      || "-"
-    );
-
-
-  document.getElementById("checkoutLocation").innerHTML =
-    "📍 CHECK OUT LOCATION : " +
-    (
-      data.checkoutLocation
-      || "-"
-    );
-
-
-  document.getElementById("totalData").innerHTML =
-    "TOTAL WORKING : " +
-    (
-      data.totalHour ?? "-"
-    )
-    + " Jam";
-
-
-  document.getElementById("otData").innerHTML =
-    "OT : " +
-    (
-      data.otHour ?? "-"
-    )
-    + " Jam";
-
-
-  document.getElementById("otMoney").innerHTML =
-    "TOTAL OT : RM " +
-    (
-      data.otMoney ?? 0
-    );
-
-
+  const otMoneyEl = document.getElementById("otMoney");
+  if (otMoneyEl) otMoneyEl.innerHTML = "TOTAL OT : RM " + (data.otMoney ?? 0);
 }

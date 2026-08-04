@@ -15,8 +15,8 @@ let watchID = null;
 let lastLat = null;
 let lastLon = null;
 
-// Movement threshold in meters. Lowered to 50m so small tests will record; change as needed.
-const MOVE_THRESHOLD_METERS = 50;
+// Default movement threshold in meters. Change as needed.
+const DEFAULT_MOVE_THRESHOLD_METERS = 50;
 
 // ======================
 // DISTANCE CALCULATOR
@@ -41,7 +41,9 @@ function distance(lat1, lon1, lat2, lon2) {
 // START TRACKING
 // ======================
 
-export function startTracking(attendanceID) {
+// startTracking(attendanceID, options)
+// options:{ threshold: number } - movement threshold in meters
+export function startTracking(attendanceID, options = {}) {
   if (watchID !== null) return;
 
   if (!attendanceID) {
@@ -49,7 +51,12 @@ export function startTracking(attendanceID) {
     return;
   }
 
-  console.log("Starting tracking for attendanceID:", attendanceID);
+  // Determine threshold: prefer explicit numeric value in options, otherwise default
+  const threshold = (options && typeof options.threshold === 'number' && !isNaN(options.threshold))
+    ? options.threshold
+    : DEFAULT_MOVE_THRESHOLD_METERS;
+
+  console.log("Starting tracking for attendanceID:", attendanceID, "threshold(m):", threshold);
 
   if (!('geolocation' in navigator)) {
     console.error('Geolocation is not available in this browser.');
@@ -70,7 +77,7 @@ export function startTracking(attendanceID) {
         if (lastLat !== null && lastLon !== null) {
           const move = distance(lastLat, lastLon, lat, lon);
           // ignore insignificant moves
-          if (move < MOVE_THRESHOLD_METERS) {
+          if (move < threshold) {
             // console.debug('Move below threshold:', move);
             return;
           }

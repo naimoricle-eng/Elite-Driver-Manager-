@@ -1090,9 +1090,9 @@ async function loadAttendanceToday() {
 const q = query(
 collection(db,"attendance"),
 where("uid","==",user.uid),
+where("status","==","Working"),
 limit(1)
 );
-
 
  let querySnap;
 

@@ -189,26 +189,20 @@ let choice = confirm(
 "OK = Google Maps\nCancel = Waze"
 );
 
-
 let lat = 3.1390;
 let lon = 101.6869;
-
 
 if(choice){
 
 // Google Maps
-window.open(
-  "https://maps.google.com/?q=" + lat + "," + lon,
-  "_system"
-);
+window.location.href =
+`intent://maps.google.com/?q=${lat},${lon}#Intent;scheme=https;package=com.google.android.apps.maps;end`;
 
 }else{
 
 // Waze
-window.open(
-  "https://waze.com/ul?ll=" + lat + "," + lng + "&navigate=yes",
-  "_system"
-);
+window.location.href =
+`intent://waze.com/ul?ll=${lat},${lon}&navigate=yes#Intent;scheme=https;package=com.waze;end`;
 
 }
 

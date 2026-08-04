@@ -1090,7 +1090,6 @@ async function loadAttendanceToday() {
 const q = query(
 collection(db,"attendance"),
 where("uid","==",user.uid),
-orderBy("createdAt","desc"),
 limit(1)
 );
 

@@ -197,14 +197,18 @@ let lon = 101.6869;
 if(choice){
 
 // Google Maps
-window.location.href =
-`https://www.google.com/maps/dir/?api=1&destination=${lat},${lon}`;
+window.open(
+  "https://maps.google.com/?q=" + lat + "," + lon,
+  "_system"
+);
 
 }else{
 
 // Waze
-window.location.href =
-`https://waze.com/ul?ll=${lat},${lon}&navigate=yes`;
+window.open(
+  "https://waze.com/ul?ll=" + lat + "," + lng + "&navigate=yes",
+  "_system"
+);
 
 }
 

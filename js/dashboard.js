@@ -774,41 +774,35 @@ checkinBtn.disabled=false;
 // ======================
 
 
-checkoutBtn.onclick =
-async()=>{
-
+checkoutBtn.onclick = async()=>{
 
 try{
-  const confirmCheckout = confirm(
-"Anda pasti mahu Check Out?\n\nSelepas Check Out:\n• Tracking akan dihentikan\n• Waktu kerja akan dikira\n• Data akan disimpan"
-);
-
-if (!confirmCheckout) {
-    return;
-}
 
 
 let id =
 attendanceID ||
-localStorage.getItem(
-"attendanceID"
-);
-
+localStorage.getItem("attendanceID");
 
 
 if(!id){
 
-alert(
-"Tiada Check In aktif"
-);
-
+alert("Tiada Check In aktif");
 return;
 
 }
 
 
+const confirmCheckout = confirm(
+"Anda pasti mahu Check Out?\n\nSelepas Check Out:\n• Tracking akan dihentikan\n• Waktu kerja akan dikira\n• Data akan disimpan"
+);
 
-statusText.innerHTML=
+
+if(!confirmCheckout){
+return;
+}
+
+
+statusText.innerHTML =
 "⏳ Check Out...";
 
 
@@ -1094,15 +1088,10 @@ async function loadAttendanceToday() {
 
 
 const q = query(
-
 collection(db,"attendance"),
-
-where(
-"uid",
-"==",
-user.uid
-)
-
+where("uid","==",user.uid),
+orderBy("createdAt","desc"),
+limit(1)
 );
 
 

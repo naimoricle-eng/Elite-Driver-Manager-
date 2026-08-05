@@ -1,5 +1,5 @@
 // ======================
-// TRACKING SYSTEM
+// TRACKING SYSTEM (Updated)
 // ======================
 
 
@@ -14,9 +14,13 @@ import {
 let watchID = null;
 let lastLat = null;
 let lastLon = null;
+let lastSaveTs = 0; // ms since epoch of last saved point
 
 // Default movement threshold in meters. Change as needed.
-const DEFAULT_MOVE_THRESHOLD_METERS = 50;
+const DEFAULT_MOVE_THRESHOLD_METERS = 10; // reduce so small moves are captured
+
+// Default minimum interval between saves (ms). Force a save at least this often even if move < threshold.
+const DEFAULT_MIN_INTERVAL_MS = 30000; // 30 seconds
 
 // Default geolocation options
 const DEFAULT_GEO_OPTIONS = {
@@ -49,9 +53,12 @@ function distance(lat1, lon1, lat2, lon2) {
 // ======================
 
 // startTracking(attendanceID, options)
-// options:{ threshold: number, enableHighAccuracy: boolean, timeout: number, maximumAge: number }
+// options:{ threshold: number (meters), minIntervalMs: number (ms), enableHighAccuracy: boolean, timeout: number, maximumAge: number }
 export function startTracking(attendanceID, options = {}) {
-  if (watchID !== null) return;
+  if (watchID !== null) {
+    console.warn('startTracking: already tracking.');
+    return;
+  }
 
   if (!attendanceID) {
     console.error("startTracking: attendanceID is not set or falsy. Tracking will not start.");
@@ -62,6 +69,10 @@ export function startTracking(attendanceID, options = {}) {
   const threshold = (options && typeof options.threshold === 'number' && !isNaN(options.threshold))
     ? options.threshold
     : DEFAULT_MOVE_THRESHOLD_METERS;
+
+  const minIntervalMs = (options && typeof options.minIntervalMs === 'number' && !isNaN(options.minIntervalMs))
+    ? options.minIntervalMs
+    : DEFAULT_MIN_INTERVAL_MS;
 
   // Geolocation options (allow overriding defaults)
   const geoOptions = {
@@ -76,7 +87,7 @@ export function startTracking(attendanceID, options = {}) {
       : DEFAULT_GEO_OPTIONS.timeout
   };
 
-  console.log("Starting tracking for attendanceID:", attendanceID, "threshold(m):", threshold, "geoOptions:", geoOptions);
+  console.log("Starting tracking for attendanceID:", attendanceID, "threshold(m):", threshold, "minIntervalMs:", minIntervalMs, "geoOptions:", geoOptions);
 
   if (!('geolocation' in navigator)) {
     console.error('Geolocation is not available in this browser.');
@@ -94,15 +105,25 @@ export function startTracking(attendanceID, options = {}) {
           return;
         }
 
+        const now = Date.now();
+        let moved = Infinity;
+
         if (lastLat !== null && lastLon !== null) {
-          const move = distance(lastLat, lastLon, lat, lon);
-          // ignore insignificant moves
-          if (move < threshold) {
-            // console.debug('Move below threshold:', move);
+          moved = distance(lastLat, lastLon, lat, lon);
+        }
+
+        const timeSinceLastSave = now - (lastSaveTs || 0);
+
+        // Only save if moved enough OR enough time passed since last save
+        if (lastLat !== null && lastLon !== null) {
+          if (moved < threshold && timeSinceLastSave < minIntervalMs) {
+            // not enough movement and not enough time passed
+            // console.debug('Move below threshold and interval not reached:', moved, timeSinceLastSave);
             return;
           }
         }
 
+        // Update last known coords
         lastLat = lat;
         lastLon = lon;
 
@@ -116,7 +137,7 @@ export function startTracking(attendanceID, options = {}) {
         }
 
         const colRef = collection(db, 'attendance', attendanceID, 'tracking');
-        console.log('Writing tracking document to:', `attendance/${attendanceID}/tracking`, { lat, lon, place });
+        console.log('Writing tracking document to:', `attendance/${attendanceID}/tracking`, { lat, lon, place, moved, timeSinceLastSave });
 
         try {
           await addDoc(colRef, {
@@ -124,10 +145,12 @@ export function startTracking(attendanceID, options = {}) {
             latitude: lat,
             longitude: lon,
             location: place,
+            movedMeters: isFinite(moved) ? Math.round(moved) : null,
             time: serverTimestamp()
           });
 
-          console.log('Tracking saved', place);
+          lastSaveTs = Date.now();
+          console.log('Tracking saved', place, 'moved:', moved);
         } catch (err) {
           console.error('Failed to save tracking to Firestore:', err);
         }
@@ -155,6 +178,7 @@ export function stopTracking() {
 
   lastLat = null;
   lastLon = null;
+  lastSaveTs = 0;
 
   console.log('Tracking stopped');
 }

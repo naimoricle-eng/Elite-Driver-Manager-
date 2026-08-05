@@ -419,11 +419,6 @@ async function start(){
   showPlaces();
 
   // Mulakan tracking: threshold 10 meter, minInterval 20s (sesuaikan jika mahu)
-  try {
-    startTracking(attendanceID, { threshold: 10, minIntervalMs: 20000 });
-  } catch (e) {
-    console.error('startTracking failed', e);
-  }
-}
+  
 
 start();

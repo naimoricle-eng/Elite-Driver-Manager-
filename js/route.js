@@ -1,330 +1,276 @@
 import { db } from "./firebase.js";
 
 import {
-collection,
-getDocs,
-getDoc,
-doc,
-query,
-orderBy
+  collection,
+  getDoc,
+  doc,
+  query,
+  orderBy,
+  onSnapshot
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 
 import {
-savePlace,
-loadPlaces,
-editPlace,
-deletePlace
+  savePlace,
+  loadPlaces,
+  editPlace,
+  deletePlace
 } from "./savedPlaces.js";
 
 
 
 const map = L.map("map")
-.setView([3.1390,101.6869],12);
+  .setView([3.1390,101.6869],12);
 
 
 
 L.tileLayer(
-"https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
-{
-maxZoom:19,
-attribution:"© OpenStreetMap"
-}
+  "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
+  {
+    maxZoom:19,
+    attribution:"© OpenStreetMap"
+  }
 )
 .addTo(map);
 
 
 
 const params =
-new URLSearchParams(
-window.location.search
-);
+  new URLSearchParams(
+    window.location.search
+  );
 
 
 // fallback to localStorage if URL param not provided
 const attendanceID =
-params.get("id") || localStorage.getItem("attendanceID");
+  params.get("id") || localStorage.getItem("attendanceID");
 
 console.log("route.js init - attendanceID:", attendanceID);
 
 if(!attendanceID){
-
-alert("Attendance ID tiada. Sila buka route.html?id=<attendanceId> atau pastikan anda telah check-in.");
-
-throw new Error(
-"Missing attendance ID"
-);
-
+  alert("Attendance ID tiada. Sila buka route.html?id=<attendanceId> atau pastikan anda telah check-in.");
+  throw new Error(
+    "Missing attendance ID"
+  );
 }
 
 
 let points = [];
-
 let routeLine = null;
-
 let car = null;
-
 let savedLocations = [];
 let visitRecords = [];
 
 
 function formatTime(t){
-
-if(!t) return "-";
-
-
-if(t.toDate){
-
-return t.toDate()
-.toLocaleString("ms-MY");
-
+  if(!t) return "-";
+  if(t.toDate){
+    return t.toDate()
+      .toLocaleString("ms-MY");
+  }
+  return new Date(t)
+    .toLocaleString("ms-MY");
 }
-
-
-return new Date(t)
-.toLocaleString("ms-MY");
-
-}
-
-
 
 
 async function loadRoute(){
+  console.log("loadRoute() - start", { attendanceID });
 
-console.log("loadRoute() - start", { attendanceID });
+  const attendanceSnap =
+    await getDoc(
+      doc(
+        db,
+        "attendance",
+        attendanceID
+      )
+    );
 
-const attendanceSnap =
-await getDoc(
-doc(
-db,
-"attendance",
-attendanceID
-)
-);
+  console.log("attendanceSnap fetched, exists:", attendanceSnap.exists());
 
-console.log("attendanceSnap fetched, exists:", attendanceSnap.exists());
+  if(!attendanceSnap.exists()){
+    alert("Attendance tiada");
+    return;
+  }
 
-if(!attendanceSnap.exists()){
+  const trackingQuery =
+    query(
+      collection(
+        db,
+        "attendance",
+        attendanceID,
+        "tracking"
+      ),
+      orderBy(
+        "time",
+        "asc"
+      )
+    );
 
-alert("Attendance tiada");
+  // Use realtime listener so tracking updates while moving are reflected
+  const unsubscribe = onSnapshot(trackingQuery, async (snap) => {
+    console.log("onSnapshot - tracking docs:", snap.size);
 
-return;
+    // reset arrays & UI
+    points = [];
+    visitRecords = [];
+    document.getElementById("timelineList").innerHTML = "";
 
+    // remove existing route/car if present
+    try{
+      if(routeLine){ map.removeLayer(routeLine); routeLine = null; }
+    } catch(e){ console.warn('Error removing routeLine', e); }
+    try{
+      if(car){ map.removeLayer(car); car = null; }
+    } catch(e){ console.warn('Error removing car', e); }
+
+    let html = "";
+    let idx = 0;
+
+    snap.forEach(item => {
+      let data = item.data();
+      console.log("tracking doc:", { id: item.id, lat: data.latitude, lng: data.longitude, time: data.time });
+
+      data.place = checkSavedLocation(
+        data.latitude,
+        data.longitude
+      );
+
+      if (
+        data.latitude &&
+        data.longitude
+      ) {
+        points.push({
+          lat: data.latitude,
+          lng: data.longitude,
+          timeMs: data.time?.toMillis ? data.time.toMillis() : Date.now()
+        });
+
+        idx++;
+
+        html += `\n\n<div class="card">\n\n🚗 Tracking Point\n\n<br>\n\n📍 ${data.place || "-"}\n\n<br>\n\n🕒 ${formatTime(data.time)}\n\n</div>`;
+      }
+    });
+
+    console.log("Processed tracking points count:", idx);
+    document.getElementById("timelineList").innerHTML = html;
+
+    calculateVisits();
+    renderVisits();
+
+    try{
+      await drawRoute();
+    } catch (err) {
+      console.error('drawRoute failed', err);
+    }
+
+  }, (err) => {
+    console.error("onSnapshot error:", err);
+  });
+
+  // optional: expose unsubscribe to window for debugging/stopping listener
+  window.__trackingUnsubscribe = unsubscribe;
 }
-
-
-const trackingQuery =
-query(
-
-collection(
-db,
-"attendance",
-attendanceID,
-"tracking"
-),
-
-orderBy(
-"time",
-"asc"
-)
-
-);
-
-
-const snap =
-await getDocs(trackingQuery);
-
-console.log("Tracking query complete, docs:", snap.size);
-
-let html="";
-
-
-let idx = 0;
-
-snap.forEach(item=>{
-
-let data=item.data();
-console.log("tracking doc:", { id: item.id, lat: data.latitude, lng: data.longitude, time: data.time });
-
-data.place =
-checkSavedLocation(
-data.latitude,
-data.longitude
-);
-
-if(
-data.latitude &&
-data.longitude
-){
-
-points.push({
-
-lat:data.latitude,
-
-lng:data.longitude,
-
-timeMs:data.time?.toMillis
-? data.time.toMillis()
-: Date.now()
-
-});
-
-idx++;
-
-html += `
-
-<div class="card">
-
-🚗 Tracking Point
-
-<br>
-
-📍 ${data.place || "-"}
-
-<br>
-
-🕒 ${formatTime(data.time)}
-
-</div>
-
-`;
-
-}
-
-});
-
-console.log("Processed tracking points count:", idx);
-
-
-document
-.getElementById("timelineList")
-.innerHTML=html;
-
-
-calculateVisits();
-
-renderVisits();
-
-try{
-await drawRoute();
-} catch (err) {
-console.error('drawRoute failed', err);
-}
-
-}
-
 
 
 async function drawRoute(){
+  if(points.length < 2){
+    document
+      .getElementById("summary")
+      .innerHTML =
+      "Tracking tidak cukup";
 
-if(points.length < 2){
+    console.log("drawRoute - not enough points", points.length);
+    return;
+  }
 
-document
-.getElementById("summary")
-.innerHTML =
-"Tracking tidak cukup";
+  const coords =
+    points
+      .map(p=>`${p.lng},${p.lat}`)
+      .join(";");
 
-console.log("drawRoute - not enough points", points.length);
-return;
+  console.log("drawRoute - coords:", coords);
 
-}
+  const url =
+    `https://router.project-osrm.org/route/v1/driving/${coords}?overview=full&geometries=geojson`;
 
-const coords =
-points
-.map(p=>`${p.lng},${p.lat}`)
-.join(";");
+  console.log("Calling OSRM:", url);
 
-console.log("drawRoute - coords:", coords);
+  const response = await fetch(url);
 
-const url =
-`https://router.project-osrm.org/route/v1/driving/${coords}?overview=full&geometries=geojson`;
+  if(!response.ok){
+    console.error('OSRM response not ok', response.status, response.statusText);
+    return;
+  }
 
-console.log("Calling OSRM:", url);
+  const data =
+    await response.json();
 
-const response = await fetch(url);
+  console.log('OSRM response routes length:', data.routes?.length || 0);
 
-if(!response.ok){
-console.error('OSRM response not ok', response.status, response.statusText);
-return;
-}
+  if(!data.routes || !data.routes.length){
+    console.warn('No routes returned from OSRM');
+    return;
+  }
 
-const data =
-await response.json();
+  const route =
+    data.routes[0]
+      .geometry
+      .coordinates
+      .map(c=>[c[1],c[0]]);
 
-console.log('OSRM response routes length:', data.routes?.length || 0);
+  routeLine =
+    L.polyline(
+      route,
+      {
+        weight:6
+      }
+    )
+    .addTo(map);
 
-if(!data.routes || !data.routes.length){
-console.warn('No routes returned from OSRM');
-return;
-}
+  map.fitBounds(
+    routeLine.getBounds()
+  );
 
-const route =
-data.routes[0]
-.geometry
-.coordinates
-.map(c=>[c[1],c[0]]);
+  document
+    .getElementById("summary")
+    .innerHTML =
+    `<div class="card">\n\n📏 Jarak:\n${(
+      data.routes[0].distance/1000
+    ).toFixed(2)} KM\n\n<br>\n\n📍 Point:\n${points.length}\n\n</div>`;
 
-routeLine =
-L.polyline(
-route,
-{
-weight:6
-}
-)
-.addTo(map);
+  console.log('Route drawn, distance (km):', (data.routes[0].distance/1000).toFixed(2));
 
-map.fitBounds(
-routeLine.getBounds()
-);
-
-document
-.getElementById("summary")
-.innerHTML =
-
-`<div class="card">\n\n📏 Jarak:\n${(
-data.routes[0].distance/1000
-).toFixed(2)} KM\n\n<br>\n\n📍 Point:\n${points.length}\n\n</div>`;
-
-console.log('Route drawn, distance (km):', (data.routes[0].distance/1000).toFixed(2));
-
-animateCar(route);
-
+  animateCar(route);
 }
 
 
 function animateCar(route){
+  const icon =
+    L.divIcon({
+      html:"🚗",
+      className:"",
+      iconSize:[30,30]
+    });
 
-const icon =
-L.divIcon({
+  car =
+    L.marker(
+      route[0],
+      {
+        icon:icon
+      }
+    )
+    .addTo(map);
 
-html:"🚗",
+  let i=0;
 
-className:"",
+  function move(){
+    if(i>=route.length) return;
+    car.setLatLng(route[i]);
+    i++;
+    setTimeout(move,100);
+  }
 
-iconSize:[30,30]
-
-});
-
-car =
-L.marker(
-route[0],
-{
-icon:icon
-}
-)
-.addTo(map);
-
-let i=0;
-
-function move(){
-if(i>=route.length) return;
-car.setLatLng(route[i]);
-i++;
-setTimeout(move,100);
-}
-
-move();
-
+  move();
 }
 
 
@@ -333,83 +279,69 @@ move();
 // ========================
 
 document
-.getElementById("saveLocationBtn")
-.onclick = async ()=>{
+  .getElementById("saveLocationBtn")
+  .onclick = async ()=>{
 
-if(points.length==0){
-alert("Tiada lokasi");
-return;
-}
+  if(points.length==0){
+    alert("Tiada lokasi");
+    return;
+  }
 
-let last = points[points.length-1];
+  let last = points[points.length-1];
 
-let name = prompt("Nama tempat:");
-if(!name) return;
+  let name = prompt("Nama tempat:");
+  if(!name) return;
 
-console.log('saveLocationBtn clicked, saving place', { name, last });
+  console.log('saveLocationBtn clicked, saving place', { name, last });
 
-// last is an object {lat,lng,timeMs} — use properties
-await savePlace(
-name,
-last.lat,
-last.lng
-);
+  // last is an object {lat,lng,timeMs} — use properties
+  await savePlace(
+    name,
+    last.lat,
+    last.lng
+  );
 
-alert("Lokasi disimpan");
+  alert("Lokasi disimpan");
 
-showPlaces();
+  showPlaces();
 
 };
 
 
 async function showPlaces(){
-let places = await loadPlaces();
-console.log('showPlaces - loaded places count:', places.length);
-let html="";
-places.forEach(p=>{
-html += `
+  let places = await loadPlaces();
+  console.log('showPlaces - loaded places count:', places.length);
+  let html="";
+  places.forEach(p=>{
+    html += `\n\n<div class="card">\n\n📍 ${p.name}\n\n<br>\n\n<button class="editBtn" data-id="${p.id}" data-name="${p.name}">✏️ Edit</button>\n\n<button class="deleteBtn" data-id="${p.id}">🗑️ Delete</button>\n\n</div>`;
+  });
 
-<div class="card">
+  document
+    .getElementById("placeList")
+    .innerHTML=html;
 
-📍 ${p.name}
+  document
+    .querySelectorAll(".editBtn")
+    .forEach(btn=>{
+      btn.onclick=async()=>{
+        let name = prompt("Tukar nama:", btn.dataset.name);
+        if(name){
+          console.log('Editing place', btn.dataset.id, 'newName', name);
+          await editPlace(btn.dataset.id, name);
+          showPlaces();
+        }
+      };
+    });
 
-<br>
-
-<button class="editBtn" data-id="${p.id}" data-name="${p.name}">✏️ Edit</button>
-
-<button class="deleteBtn" data-id="${p.id}">🗑️ Delete</button>
-
-</div>
-`;
-});
-
-document
-.getElementById("placeList")
-.innerHTML=html;
-
-document
-.querySelectorAll(".editBtn")
-.forEach(btn=>{
-btn.onclick=async()=>{
-let name = prompt("Tukar nama:", btn.dataset.name);
-if(name){
-console.log('Editing place', btn.dataset.id, 'newName', name);
-await editPlace(btn.dataset.id, name);
-showPlaces();
-}
-};
-});
-
-document
-.querySelectorAll(".deleteBtn")
-.forEach(btn=>{
-btn.onclick=async()=>{
-console.log('Deleting place', btn.dataset.id);
-await deletePlace(btn.dataset.id);
-showPlaces();
-};
-});
-
+  document
+    .querySelectorAll(".deleteBtn")
+    .forEach(btn=>{
+      btn.onclick=async()=>{
+        console.log('Deleting place', btn.dataset.id);
+        await deletePlace(btn.dataset.id);
+        showPlaces();
+      };
+    });
 }
 
 
@@ -418,68 +350,67 @@ showPlaces();
 // ========================
 
 async function showSavedMarkers(){
-let places = await loadPlaces();
-savedLocations = places;
-console.log('showSavedMarkers - places count:', places.length);
-places.forEach(place=>{
-if(place.latitude && place.longitude){
-let marker = L.marker([place.latitude, place.longitude]).addTo(map);
-marker.bindPopup(`\n\n📍 <b>${place.name}</b>\n\n<br>\n\n<button onclick="openNavigation(${place.latitude},${place.longitude})">\n\n🚗 NAVIGATE\n\n</button>\n\n`);
-}
-});
+  let places = await loadPlaces();
+  savedLocations = places;
+  console.log('showSavedMarkers - places count:', places.length);
+  places.forEach(place=>{
+    if(place.latitude && place.longitude){
+      let marker = L.marker([place.latitude, place.longitude]).addTo(map);
+      marker.bindPopup(`\n\n📍 <b>${place.name}</b>\n\n<br>\n\n<button onclick="openNavigation(${place.latitude},${place.longitude})">\n\n🚗 NAVIGATE\n\n</button>\n\n`);
+    }
+  });
 }
 
 function openNavigation(lat,lng){
-console.log('openNavigation to:', lat, lng);
-window.open("https://www.google.com/maps/dir/?api=1&destination="+lat+","+lng, "_blank");
+  console.log('openNavigation to:', lat, lng);
+  window.open("https://www.google.com/maps/dir/?api=1&destination="+lat+","+lng, "_blank");
 }
 
 window.openNavigation = openNavigation;
 function distanceMeter(lat1,lng1,lat2,lng2){
-const R = 6371000;
-const dLat = (lat2-lat1) * Math.PI/180;
-const dLng = (lng2-lng1) * Math.PI/180;
-const a = Math.sin(dLat/2) * Math.sin(dLat/2) + Math.cos(lat1*Math.PI/180) * Math.cos(lat2*Math.PI/180) * Math.sin(dLng/2) * Math.sin(dLng/2);
-return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+  const R = 6371000;
+  const dLat = (lat2-lat1) * Math.PI/180;
+  const dLng = (lng2-lng1) * Math.PI/180;
+  const a = Math.sin(dLat/2) * Math.sin(dLat/2) + Math.cos(lat1*Math.PI/180) * Math.cos(lat2*Math.PI/180) * Math.sin(dLng/2) * Math.sin(dLng/2);
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
 }
 function checkSavedLocation(lat,lng){
-for(let place of savedLocations){
-let distance = distanceMeter(lat,lng,place.latitude,place.longitude);
-if(distance <= place.radius){
-return place.name;
-}
-}
-return null;
+  for(let place of savedLocations){
+    let distance = distanceMeter(lat,lng,place.latitude,place.longitude);
+    if(distance <= place.radius){
+      return place.name;
+    }
+  }
+  return null;
 }
 function calculateVisits(){
-let active = null;
-points.forEach(point=>{
-let place = checkSavedLocation(point.lat, point.lng);
-if(place){
-if(!active){
-active = { name:place, start:point.timeMs, end:point.timeMs };
-}else{
-if(active.name === place){ active.end = point.timeMs; }else{ visitRecords.push(active); active={ name:place, start:point.timeMs, end:point.timeMs }; }
-}
-}else{
-if(active){ visitRecords.push(active); active=null; }
-}
-});
-if(active){ visitRecords.push(active); }
+  let active = null;
+  points.forEach(point=>{
+    let place = checkSavedLocation(point.lat, point.lng);
+    if(place){
+      if(!active){
+        active = { name:place, start:point.timeMs, end:point.timeMs };
+      }else{
+        if(active.name === place){ active.end = point.timeMs; }else{ visitRecords.push(active); active={ name:place, start:point.timeMs, end:point.timeMs }; }
+      }
+    }else{
+      if(active){ visitRecords.push(active); active=null; }
+    }
+  });
+  if(active){ visitRecords.push(active); }
 }
 function renderVisits(){
-let html="";
-visitRecords.forEach(v=>{
-let min = Math.round((v.end-v.start)/60000);
-html += `\n\n<div class="card">\n\n📍 ${v.name}\n\n<br>\n\n🕒 ${new Date(v.start).toLocaleTimeString("ms-MY")} \n -\n\n${new Date(v.end).toLocaleTimeString("ms-MY")}\n\n<br>\n\n⏱️ Berhenti:\n${min} minit\n\n</div>\n`;
-});
-document.getElementById("summary").innerHTML += html;
+  let html="";
+  visitRecords.forEach(v=>{
+    let min = Math.round((v.end-v.start)/60000);
+    html += `\n\n<div class="card">\n\n📍 ${v.name}\n\n<br>\n\n🕒 ${new Date(v.start).toLocaleTimeString("ms-MY")} \n -\n\n${new Date(v.end).toLocaleTimeString("ms-MY")}\n\n<br>\n\n⏱️ Berhent[...`]});
+  document.getElementById("summary").innerHTML += html;
 }
 async function start(){
-console.log('route.start()');
-await showSavedMarkers();
-await loadRoute();
-showPlaces();
+  console.log('route.start()');
+  await showSavedMarkers();
+  await loadRoute();
+  showPlaces();
 }
 
 start();

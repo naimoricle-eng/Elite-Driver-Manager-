@@ -17,6 +17,8 @@ import {
   deletePlace
 } from "./savedPlaces.js";
 
+import { startTracking, stopTracking } from "./tracking.js";
+
 
 
 const map = L.map("map")
@@ -313,7 +315,7 @@ async function showPlaces(){
   console.log('showPlaces - loaded places count:', places.length);
   let html="";
   places.forEach(p=>{
-    html += `\n\n<div class="card">\n\n📍 ${p.name}\n\n<br>\n\n<button class="editBtn" data-id="${p.id}" data-name="${p.name}">✏️ Edit</button>\n\n<button class="deleteBtn" data-id="${p.id}">🗑️ Delete</button>\n\n</div>`;
+    html += `\n\n<div class="card">\n\n📍 ${p.name}\n\n<br>\n\n<button class="editBtn" data-id="${p.id}" data-name="${p.name}">✏️ Edit</button>\n\n<button class="deleteBtn" data-id="${p.id}[...]`;
   });
 
   document
@@ -403,14 +405,27 @@ function renderVisits(){
   let html="";
   visitRecords.forEach(v=>{
     let min = Math.round((v.end-v.start)/60000);
-    html += `\n\n<div class="card">\n\n📍 ${v.name}\n\n<br>\n\n🕒 ${new Date(v.start).toLocaleTimeString("ms-MY")} \n -\n\n${new Date(v.end).toLocaleTimeString("ms-MY")}\n\n<br>\n\n⏱️ Berhent[...`]});
+    html += `\n\n<div class="card">\n\n📍 ${v.name}\n\n<br>\n\n🕒 ${new Date(v.start).toLocaleTimeString("ms-MY")} \n -\n\n${new Date(v.end).toLocaleTimeString("ms-MY")}\n\n<br>\n\n⏱️ Ber[...]`;
   document.getElementById("summary").innerHTML += html;
 }
+
+// Start tracking when route page starts
+window.addEventListener('beforeunload', () => {
+  try { stopTracking(); } catch(e) { /* ignore */ }
+});
+
 async function start(){
   console.log('route.start()');
   await showSavedMarkers();
   await loadRoute();
   showPlaces();
+
+  // Mulakan tracking: threshold 10 meter, minInterval 20s (sesuaikan jika mahu)
+  try {
+    startTracking(attendanceID, { threshold: 10, minIntervalMs: 20000 });
+  } catch (e) {
+    console.error('startTracking failed', e);
+  }
 }
 
 start();

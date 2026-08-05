@@ -124,7 +124,7 @@ export function startTracking(attendanceID, options = {}) {
             latitude: lat,
             longitude: lon,
             location: place,
-            createdAt: serverTimestamp()
+            time: serverTimestamp()
           });
 
           console.log('Tracking saved', place);

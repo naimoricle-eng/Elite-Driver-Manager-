@@ -45,6 +45,7 @@ window.location.search
 const attendanceID =
 params.get("id") || localStorage.getItem("attendanceID");
 
+console.log("route.js init - attendanceID:", attendanceID);
 
 if(!attendanceID){
 
@@ -90,6 +91,7 @@ return new Date(t)
 
 async function loadRoute(){
 
+console.log("loadRoute() - start", { attendanceID });
 
 const attendanceSnap =
 await getDoc(
@@ -100,6 +102,7 @@ attendanceID
 )
 );
 
+console.log("attendanceSnap fetched, exists:", attendanceSnap.exists());
 
 if(!attendanceSnap.exists()){
 
@@ -131,13 +134,18 @@ orderBy(
 const snap =
 await getDocs(trackingQuery);
 
+console.log("Tracking query complete, docs:", snap.size);
 
 let html="";
 
 
+let idx = 0;
+
 snap.forEach(item=>{
 
 let data=item.data();
+console.log("tracking doc:", { id: item.id, lat: data.latitude, lng: data.longitude, time: data.time });
+
 data.place =
 checkSavedLocation(
 data.latitude,
@@ -161,6 +169,8 @@ timeMs:data.time?.toMillis
 
 });
 
+idx++;
+
 html += `
 
 <div class="card">
@@ -183,6 +193,8 @@ html += `
 
 });
 
+console.log("Processed tracking points count:", idx);
+
 
 document
 .getElementById("timelineList")
@@ -193,7 +205,11 @@ calculateVisits();
 
 renderVisits();
 
-drawRoute();
+try{
+await drawRoute();
+} catch (err) {
+console.error('drawRoute failed', err);
+}
 
 }
 
@@ -208,6 +224,7 @@ document
 .innerHTML =
 "Tracking tidak cukup";
 
+console.log("drawRoute - not enough points", points.length);
 return;
 
 }
@@ -217,16 +234,27 @@ points
 .map(p=>`${p.lng},${p.lat}`)
 .join(";");
 
+console.log("drawRoute - coords:", coords);
+
 const url =
 `https://router.project-osrm.org/route/v1/driving/${coords}?overview=full&geometries=geojson`;
 
-const response =
-await fetch(url);
+console.log("Calling OSRM:", url);
+
+const response = await fetch(url);
+
+if(!response.ok){
+console.error('OSRM response not ok', response.status, response.statusText);
+return;
+}
 
 const data =
 await response.json();
 
-if(!data.routes.length){
+console.log('OSRM response routes length:', data.routes?.length || 0);
+
+if(!data.routes || !data.routes.length){
+console.warn('No routes returned from OSRM');
 return;
 }
 
@@ -256,6 +284,8 @@ document
 `<div class="card">\n\n📏 Jarak:\n${(
 data.routes[0].distance/1000
 ).toFixed(2)} KM\n\n<br>\n\n📍 Point:\n${points.length}\n\n</div>`;
+
+console.log('Route drawn, distance (km):', (data.routes[0].distance/1000).toFixed(2));
 
 animateCar(route);
 
@@ -316,6 +346,8 @@ let last = points[points.length-1];
 let name = prompt("Nama tempat:");
 if(!name) return;
 
+console.log('saveLocationBtn clicked, saving place', { name, last });
+
 // last is an object {lat,lng,timeMs} — use properties
 await savePlace(
 name,
@@ -332,6 +364,7 @@ showPlaces();
 
 async function showPlaces(){
 let places = await loadPlaces();
+console.log('showPlaces - loaded places count:', places.length);
 let html="";
 places.forEach(p=>{
 html += `
@@ -360,6 +393,7 @@ document
 btn.onclick=async()=>{
 let name = prompt("Tukar nama:", btn.dataset.name);
 if(name){
+console.log('Editing place', btn.dataset.id, 'newName', name);
 await editPlace(btn.dataset.id, name);
 showPlaces();
 }
@@ -370,6 +404,7 @@ document
 .querySelectorAll(".deleteBtn")
 .forEach(btn=>{
 btn.onclick=async()=>{
+console.log('Deleting place', btn.dataset.id);
 await deletePlace(btn.dataset.id);
 showPlaces();
 };
@@ -385,6 +420,7 @@ showPlaces();
 async function showSavedMarkers(){
 let places = await loadPlaces();
 savedLocations = places;
+console.log('showSavedMarkers - places count:', places.length);
 places.forEach(place=>{
 if(place.latitude && place.longitude){
 let marker = L.marker([place.latitude, place.longitude]).addTo(map);
@@ -394,6 +430,7 @@ marker.bindPopup(`\n\n📍 <b>${place.name}</b>\n\n<br>\n\n<button onclick="open
 }
 
 function openNavigation(lat,lng){
+console.log('openNavigation to:', lat, lng);
 window.open("https://www.google.com/maps/dir/?api=1&destination="+lat+","+lng, "_blank");
 }
 
@@ -439,6 +476,7 @@ html += `\n\n<div class="card">\n\n📍 ${v.name}\n\n<br>\n\n🕒 ${new Date(v.s
 document.getElementById("summary").innerHTML += html;
 }
 async function start(){
+console.log('route.start()');
 await showSavedMarkers();
 await loadRoute();
 showPlaces();

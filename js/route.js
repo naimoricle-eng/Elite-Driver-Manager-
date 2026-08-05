@@ -406,6 +406,7 @@ function renderVisits(){
   visitRecords.forEach(v=>{
     let min = Math.round((v.end-v.start)/60000);
     html += `\n\n<div class="card">\n\n📍 ${v.name}\n\n<br>\n\n🕒 ${new Date(v.start).toLocaleTimeString("ms-MY")} \n -\n\n${new Date(v.end).toLocaleTimeString("ms-MY")}\n\n<br>\n\n⏱️ Ber[...]`;
+  });
   document.getElementById("summary").innerHTML += html;
 }
 
@@ -419,6 +420,6 @@ async function start(){
   showPlaces();
 
   // Mulakan tracking: threshold 10 meter, minInterval 20s (sesuaikan jika mahu)
-  
+}
 
 start();

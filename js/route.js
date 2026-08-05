@@ -410,9 +410,7 @@ function renderVisits(){
 }
 
 // Start tracking when route page starts
-window.addEventListener('beforeunload', () => {
-  try { stopTracking(); } catch(e) { /* ignore */ }
-});
+
 
 async function start(){
   console.log('route.start()');

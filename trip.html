@@ -120,7 +120,6 @@ if(!localStorage.getItem("tripStartTime") ||
 
 alert("Sila tekan MULA TRIP dan TAMAT TRIP dahulu");
 return;
-
 }
 let trip = {
 
@@ -184,21 +183,37 @@ let lat = position.coords.latitude;
 let lng = position.coords.longitude;
 console.log("GPS:", lat, lng);
 
+// Save start trip details on first fix
 if(lastLat == null){
 
 lastLat = lat;
 lastLng = lng;
 
+// persist start trip info for saveTrip()
+try{
+localStorage.setItem("tripStartTime", new Date().toLocaleTimeString());
+localStorage.setItem("tripStartLat", String(lat));
+localStorage.setItem("tripStartLng", String(lng));
+}
+catch(e){ console.warn('localStorage set failed', e); }
 
-await addDoc(collection(db,"tracking"),{
+const attendanceID = localStorage.getItem("attendanceID");
 
+if(!attendanceID){
+console.warn("attendanceID missing — tracking not saved");
+} else {
+try{
+await addDoc(collection(db, "attendance", attendanceID, "tracking"),{
 latitude: lat,
 longitude: lng,
 status:"MULA TRIP",
 time: serverTimestamp()
-
 });
+}catch(e){console.error('Failed to save tracking', e);}
+}
 
+// update status
+document.getElementById('tripStatus').innerHTML = 'Status: Trip Bermula';
 
 return;
 
@@ -219,20 +234,26 @@ if(jarak > 50){
 lastLat = lat;
 lastLng = lng;
 
+const attendanceID = localStorage.getItem("attendanceID");
 
-await addDoc(collection(db,"tracking"),{
-
+if(!attendanceID){
+console.warn("attendanceID missing — tracking not saved");
+} else {
+try{
+await addDoc(collection(db, "attendance", attendanceID, "tracking"),{
 latitude: lat,
 longitude: lng,
 status:"BERGERAK",
 time: serverTimestamp()
-
 });
+}catch(e){console.error('Failed to save tracking', e);}
+}
 
 
 clearTimeout(stopTimer);
 
 return;
+
 
 }
 
@@ -242,23 +263,28 @@ clearTimeout(stopTimer);
 
 stopTimer = setTimeout(async function(){
 
+const attendanceID = localStorage.getItem("attendanceID");
 
-await addDoc(collection(db,"tracking"),{
-
+if(!attendanceID){
+console.warn("attendanceID missing — tracking not saved");
+} else {
+try{
+await addDoc(collection(db, "attendance", attendanceID, "tracking"),{
 latitude: lat,
 longitude: lng,
 
 status:"BERHENTI",
 
 time: serverTimestamp()
-
 });
-
-
 console.log("Lokasi berhenti disimpan");
+}catch(e){console.error('Failed to save tracking', e);}
+}
+
 
 
 },60000); // 1 minit
+
 
 
 },
@@ -274,13 +300,24 @@ timeout:10000
 });
 
 
-alert("Tracking berhenti lokasi aktif");
+alert("Tracking lokasi aktif");
 
 }
   
 function endTrip(){
 
 if(watchID){
+
+// capture final position for trip end if possible
+navigator.geolocation.getCurrentPosition(function(pos){
+try{localStorage.setItem("tripEndTime", new Date().toLocaleTimeString());
+localStorage.setItem("tripEndLat", String(pos.coords.latitude));
+localStorage.setItem("tripEndLng", String(pos.coords.longitude));
+}catch(e){console.warn('localStorage set failed', e);} 
+}, function(){
+// ignore errors
+});
+
 
 navigator.geolocation.clearWatch(watchID);
 
@@ -345,6 +382,7 @@ ${trip.endLat}, ${trip.endLng}</p>
 </button>
 </div>
 `;
+
 
 });
 

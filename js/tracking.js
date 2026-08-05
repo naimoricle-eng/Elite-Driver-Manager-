@@ -94,8 +94,11 @@ export function startTracking(attendanceID, options = {}) {
     return;
   }
 
-  watchID = navigator.geolocation.watchPosition(
+  console.log("START WATCH GPS");
+
+watchID = navigator.geolocation.watchPosition(
     async (position) => {
+      console.log("GPS UPDATE MASUK");
       try {
         const lat = position?.coords?.latitude;
         const lon = position?.coords?.longitude;
